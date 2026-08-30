@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getRazorpayEnv } from "@/lib/env";
 
@@ -28,6 +29,16 @@ type CreatePaymentLinkInput = {
   currency: string;
 };
 
+export function createPaymentLinkReferenceId(recoveryCaseId: string) {
+  const caseDigest = createHash("sha256")
+    .update(recoveryCaseId)
+    .digest("hex")
+    .slice(0, 10);
+  const attempt = randomUUID().replaceAll("-", "").slice(0, 12);
+
+  return `rec_${caseDigest}_${attempt}`;
+}
+
 export async function createRazorpayPaymentLink({
   recoveryCaseId,
   invoiceNumber,
@@ -35,6 +46,7 @@ export async function createRazorpayPaymentLink({
   currency,
 }: CreatePaymentLinkInput): Promise<RazorpayPaymentLink> {
   const env = getRazorpayEnv();
+  const referenceId = createPaymentLinkReferenceId(recoveryCaseId);
   const callbackUrl = new URL("/", env.APP_URL);
   callbackUrl.searchParams.set("case", recoveryCaseId);
   callbackUrl.searchParams.set("checkout", "returned");
@@ -51,7 +63,7 @@ export async function createRazorpayPaymentLink({
       amount,
       currency,
       accept_partial: false,
-      reference_id: recoveryCaseId,
+      reference_id: referenceId,
       description: `Recovery for invoice ${invoiceNumber}`,
       notify: { sms: false, email: false },
       reminder_enable: false,

@@ -1,0 +1,686 @@
+# Recoup: Research-Informed Winning Plan
+
+Last revised: 2026-08-30
+
+Status: Canonical product and demo plan
+
+Research basis: [Razorpay capabilities relevant to AI Revenue Recovery](../research/razorpay-revenue-recovery-existing-features.md)
+
+## 1. Executive decision
+
+Recoup will be an **intervention-vs-wait recovery agent for overdue B2B receivables**.
+
+It will not compete with Razorpay's native reminders, retries, routing, dashboards, hosted collection, or reconciliation. Instead, it will decide:
+
+- which receivable deserves scarce recovery attention now;
+- whether acting now is likely to add value over waiting or native automation;
+- which bounded intervention is appropriate;
+- when a promise, dispute, late authorization, or verified payment requires silence;
+- when a concession or high-value case requires human approval; and
+- how a verified Razorpay payment changes the recovery plan and portfolio priority.
+
+The product promise is:
+
+> Recoup finds the next best recovery action—including deliberate inaction—executes it through Razorpay, and proves the verified and simulated impact without overstating either.
+
+The winning demo has two connected moments:
+
+1. A **Recovery Frontier** shows how Recoup allocates a limited contact budget more effectively than Razorpay-native reminders and a fixed finance-team schedule across the same synthetic portfolio.
+2. A live ambiguous English/Hinglish customer response becomes a policy-approved partial-payment and promise plan, followed by a verified Razorpay Test Mode payment and immediate portfolio reallocation.
+
+## 2. What the Razorpay research changed
+
+The original direction correctly emphasized state, policy, simulation, audit, and promises. It still risked presenting capabilities Razorpay already supplies as product innovation.
+
+Razorpay already provides:
+
+- Payment Link and Invoice reminders and notifications;
+- Payment Link and Invoice partial payments;
+- automatic Subscription retries, customer notifications, and pending/halted states;
+- payment-failure metadata and retry attempts;
+- late-authorization processing;
+- Magic Checkout abandonment data and reports;
+- Optimizer routing and gateway-success optimization;
+- Smart Collect bank-transfer reconciliation;
+- payment and failure dashboards; and
+- signed financial webhooks and fetch APIs.
+
+Therefore:
+
+- “Generate a link” is an execution primitive, not the pitch.
+- “Send a reminder” is not differentiation.
+- “Retry a failed subscription” would duplicate native behavior.
+- “Detect payment degradation” would overlap with Checkout and Optimizer.
+- “Show failed payments in a dashboard” would resemble Razorpay's Dashboard.
+- “Track promises” is valuable but is already an example direction in the track and is not enough alone.
+- “Cross-product recovery control plane” is a credible long-term vision, but implementing many Razorpay products would weaken hackathon focus.
+
+The narrow opportunity Razorpay does not publicly document as a single product is the decision and evidence layer around those primitives: business-context recovery cases, intervention-vs-wait prioritization, promises and disputes, bounded policy, scarce-capacity allocation, human review, attribution, and an auditable AI timeline.
+
+## 3. Product thesis
+
+Finance teams do not merely need another reminder. They need to know where intervention will add the most cash beyond what would happen anyway.
+
+Recoup treats **WAIT** as a first-class action. Waiting can be correct when:
+
+- a customer has an active promise-to-pay;
+- a payment may be late-authorized;
+- a Razorpay-native retry remains active;
+- a verified payment event is pending reconciliation;
+- a dispute requires review;
+- a recent contact is still inside cooldown; or
+- the expected benefit of another contact is lower than using that limited contact elsewhere.
+
+This gives the agent a defensible recovery objective:
+
+~~~text
+incremental value of acting now
+= expected recovery after selected intervention
+− expected recovery from waiting or native automation
+− contact and relationship cost
+− policy and compliance risk
+~~~
+
+Until real merchant outcome data exists, Recoup must describe these values as scenario estimates or synthetic evaluation outputs—not calibrated real-world probabilities.
+
+## 4. The core recovery loop
+
+~~~text
+Overdue receivable and observable history
+              ↓
+AI interprets notes, replies, and payment context
+              ↓
+Candidate action and recovery factors
+              ↓
+Deterministic policy filters or escalates
+              ↓
+Capacity allocator compares ACT NOW versus WAIT
+              ↓
+Bounded action through a Razorpay primitive
+              ↓
+Customer response or verified Razorpay event
+              ↓
+Case, promise, balance, and queue update
+              ↓
+Measured decision outcome and audit replay
+~~~
+
+Every recovery event must connect:
+
+> observation → AI proposal → policy result → execution → customer or payment event → case update → attributed outcome
+
+## 5. The standout portfolio experience: Recovery Frontier
+
+The existing Recovery Time Machine becomes a more defensible **Recovery Frontier**.
+
+The judge sees the same receivables evaluated under:
+
+1. **Razorpay-native baseline:** create the standard collection primitive and use its fixed/native reminders without Recoup case intelligence.
+2. **Finance-team baseline:** use an overdue-age schedule such as gentle reminder, stronger reminder, link, then escalation.
+3. **Recoup:** choose ACT, WAIT, partial-payment offer, commitment request, or human escalation under the same capacity and policy.
+
+The main visualization plots:
+
+- horizontal axis: customer contacts or human-review load;
+- vertical axis: simulated recovered rupees;
+- separate lines or points for native baseline, fixed finance rules, and Recoup;
+- a visible selected daily contact budget;
+- a scenario selector for conservative, standard, and adversarial assumptions; and
+- an uncertainty band or result range across held-out seeds.
+
+The point is not merely “our bar is taller.” The judge should be able to move the contact budget and see:
+
+- which cases enter or leave today's queue;
+- which cases are protected from contact;
+- why Recoup expects action to add value;
+- how much simulated recovery changes;
+- how customer burden changes; and
+- which case-level decisions account for the difference.
+
+The headline should use a range when appropriate:
+
+> Across held-out synthetic scenarios, Recoup produced ₹A–₹B more simulated recovery than the native-reminder baseline at the same contact budget.
+
+This is harder to dismiss than one tuned result from one simulator seed.
+
+## 6. The memorable live case
+
+Use one imported overdue receivable with a messy response:
+
+> “Sir, ₹40,000 aaj kar sakte hain, balance Friday. Invoice amount bhi please verify kar dena.”
+
+The agent creates a structured proposal:
+
+~~~json
+{
+  "intent": "PARTIAL_PAYMENT_AND_PROMISE",
+  "pay_now_paise": 4000000,
+  "promised_amount_paise": 6000000,
+  "promised_date": "2026-09-04",
+  "possible_dispute": true,
+  "confidence": 0.91,
+  "proposed_action": "OFFER_PARTIAL_PAYMENT"
+}
+~~~
+
+The demo sequence is:
+
+1. AI extracts intent, amount, date, and ambiguity.
+2. Policy refuses fully autonomous execution because of the possible dispute.
+3. A human approves the safe partial-payment action while routing the invoice query for review.
+4. Recoup creates a Razorpay Test Mode Standard Payment Link with partial payment enabled and stable case correlation.
+5. The customer completes the partial payment on Razorpay-hosted Checkout.
+6. A verified and deduplicated payment_link.partially_paid event records the payment exactly once.
+7. The outstanding balance becomes a protected dated promise.
+8. The customer disappears from today's contact queue.
+9. The freed contact slot is visibly reallocated to the next highest-value eligible case.
+10. The audit replay shows why each system component acted.
+
+Step 9 is important: promise protection now has visible portfolio value. It avoids unnecessary contact and reallocates scarce recovery capacity instead of being only a status change.
+
+The live demo sentence is:
+
+> AI interprets and proposes. Policy authorizes. Razorpay verifies the money. Recoup reallocates the next recovery action.
+
+## 7. What makes the AI necessary
+
+AI should handle information that fixed rules cannot reliably structure:
+
+- ambiguous English/Hinglish customer replies;
+- payment intent, proposed dates, partial amounts, and requests for time;
+- dispute or relationship-risk signals in collections notes;
+- synthesis of invoice aging, prior contact, promises, and verified failure context;
+- a case-level next-action proposal with structured supporting factors; and
+- a concise explanation tied only to facts visible at decision time.
+
+AI must not:
+
+- declare a payment successful;
+- set the authoritative amount due;
+- bypass cooldown, dispute, promise, or approval rules;
+- invent an available payment method;
+- route across gateways;
+- approve credit or financing;
+- cancel, capture, refund, or settle money autonomously; or
+- use hidden simulator traits.
+
+The first batch agent can use cached, schema-validated model decisions for reproducibility. The live case should call the model directly and show validation and policy gating.
+
+## 8. Deterministic system responsibilities
+
+### Policy engine
+
+- terminal-state stop;
+- verified-payment stop;
+- active-promise protection;
+- late-authorization or native-retry hold;
+- dispute suppression;
+- per-case contact limit;
+- cooldown and quiet-period enforcement;
+- high-value and material-concession approval;
+- allowed action and payment-method checks; and
+- deterministic transition validation.
+
+### Capacity allocator
+
+- enforce daily contact and review budgets;
+- rank only policy-eligible actions;
+- select no more work than the configured capacity;
+- record why a lower-ranked case was deferred; and
+- reallocate capacity when a payment, promise, dispute, or block changes eligibility.
+
+### Financial ledger
+
+- represent money in integer currency subunits;
+- correlate recovery case, Payment Link, Order, Payment, and webhook event IDs;
+- verify raw-body webhook signatures;
+- deduplicate event delivery;
+- tolerate delayed and out-of-order events;
+- reconcile recovered and outstanding totals; and
+- prevent AI output or frontend callbacks from becoming financial truth.
+
+## 9. Bounded action set
+
+The hackathon version should support:
+
+- **WAIT**
+- **VERIFY_PAYMENT_STATE**
+- **SEND_CONTEXTUAL_REMINDER**
+- **SEND_PAYMENT_LINK**
+- **REQUEST_PAYMENT_COMMITMENT**
+- **OFFER_PARTIAL_PAYMENT**
+- **FOLLOW_UP_BROKEN_PROMISE**
+- **ESCALATE_DISPUTE**
+- **ESCALATE_TO_HUMAN**
+- **CLOSE_CASE**
+
+Generic reminders remain a baseline capability. Recoup's value is the eligibility, timing, context, capacity allocation, and measurable decision—not the sending mechanism.
+
+Adding an action requires:
+
+1. a plausible recovery mechanism;
+2. a policy treatment;
+3. observable eligibility inputs;
+4. an auditable execution event;
+5. a simulator response model;
+6. a baseline comparison; and
+7. a reason it improves the live story or measured outcome.
+
+## 10. Product surfaces
+
+Build one finance workspace with three connected views.
+
+### A. Recovery Command Center
+
+- overdue exposure;
+- verified Test Mode collections, separated from simulation;
+- simulated incremental-recovery range versus native and fixed baselines;
+- today's contact and reviewer capacity;
+- prioritized ACT NOW queue;
+- protected WAIT queue with reasons;
+- urgent approvals; and
+- Recovery Frontier control.
+
+The split between **ACT NOW** and **WAIT / PROTECTED** should be visually prominent. This is the product identity.
+
+### B. Decision Replay
+
+- complete case timeline;
+- observable information available at decision time;
+- AI interpretation and proposal;
+- deterministic policy result;
+- capacity-allocation result;
+- human approval or override;
+- customer response;
+- Razorpay event provenance; and
+- before/after balance reconciliation.
+
+### C. Evidence Lab
+
+- native baseline, finance baseline, and Recoup comparison;
+- portfolio, scenario, seed, and policy hash;
+- contact-budget sensitivity;
+- held-out results and uncertainty range;
+- case-level attribution;
+- guardrail statistics;
+- metric definitions;
+- evidence labels; and
+- limitations.
+
+Do not build separate finance, manager, admin, and customer portals for the hackathon.
+
+## 11. Evaluation contract
+
+### Primary counterfactual
+
+The main comparison is not “Recoup versus nothing.” It is:
+
+> Recoup versus Razorpay-native collection/reminder behavior at the same contact-equivalent budget, with a fixed finance SOP as a second challenger.
+
+A no-intervention strategy remains useful only to estimate simulated spontaneous recovery.
+
+### Common inputs
+
+All strategies receive:
+
+- identical starting receivables;
+- identical observable customer histories;
+- identical evaluation windows;
+- identical policy constraints;
+- identical contact and review budgets;
+- identical native-automation assumptions; and
+- comparable customer conditions.
+
+### Pre-generated potential-outcome bank
+
+The current simulator keys some response draws to the selected action. Before comparing strategies, generate and freeze an explicit potential-outcome bank for every case, day, and allowed action.
+
+The bank should contain synthetic outcomes such as:
+
+- spontaneous payment if no action occurs;
+- response/no-response for each eligible action;
+- immediate full or partial payment;
+- promise creation and reliability;
+- dispute signal; and
+- late or delayed financial confirmation.
+
+Both strategies query the same frozen bank for the action they choose. Save a hash of the bank with the run. The agent must never see it.
+
+This does not make the benchmark real-world causal evidence. It does make the comparison reproducible, paired, inspectable, and less vulnerable to accidental random differences.
+
+### Scenario families
+
+- **Conservative:** small intervention effects, higher spontaneous recovery, expensive contacts.
+- **Standard:** central disclosed assumptions.
+- **Adversarial:** low response, more disputes, weaker promises, delayed events.
+- **Relationship-sensitive:** stricter contact costs and approval rules for strategic accounts.
+
+Development uses one set of seeds. Final evaluation uses held-out seeds that are not used to tune the agent.
+
+### Primary metrics
+
+- simulated incremental rupees recovered versus Razorpay-native baseline;
+- simulated incremental rupees recovered versus fixed finance baseline;
+- rupees recovered per contact;
+- contacts per fully recovered case;
+- days to verified or simulated recovery;
+- protected contacts avoided;
+- active promises respected;
+- partial and fulfilled promises;
+- broken promises reactivated;
+- human-review load;
+- policy blocks by reason;
+- late-state or duplicate-collection hazards prevented; and
+- ledger reconciliation validity.
+
+Safety events such as duplicate outreach prevented must be reported separately from recovered revenue. Do not convert them into rupees without a disclosed and defensible model.
+
+## 12. Evidence boundaries
+
+Every result must be labelled as one of:
+
+- **RAZORPAY TEST MODE**
+- **SYNTHETIC RECEIVABLE**
+- **SIMULATED CUSTOMER RESPONSE**
+- **SIMULATED PAYMENT OUTCOME**
+- **MEASURED AGENT DECISION**
+- **DETERMINISTIC POLICY DECISION**
+- **HUMAN APPROVAL**
+- **VERIFIED TEST WEBHOOK**
+
+Required disclosure:
+
+> Razorpay Test Mode demonstrates integration behavior and verified event processing. The synthetic benchmark compares strategies under disclosed assumptions. Neither proves real merchant recovery performance.
+
+Never say:
+
+> Recoup recovered ₹8 lakh.
+
+Say:
+
+> In the held-out synthetic benchmark, Recoup produced ₹8 lakh of simulated recovery versus ₹5.6 lakh for the Razorpay-native reminder baseline at the same contact budget, a simulated incremental difference of ₹2.4 lakh under the disclosed assumptions.
+
+## 13. Razorpay integration choice
+
+### Hackathon collection primitive
+
+Continue using a Standard Payment Link as the primary rail because:
+
+- it is directly testable;
+- it supports hosted collection;
+- it can accept partial payments;
+- it exposes stable Link, Order, and Payment identifiers;
+- it emits partial, paid, expired, and cancelled events; and
+- the current repository already proves the full-payment webhook loop.
+
+Imported receivables plus Payment Links tell a clearer story than expanding into full Invoice/GST generation.
+
+### Test Mode
+
+Status: **TESTABLE** for Payment Link creation, hosted payment, lifecycle events, signature verification, correlation, and idempotent state updates.
+
+Limitations:
+
+- documented maximum of 30 Payment Links per Test Mode business;
+- no real money;
+- no evidence of real notification delivery or customer behavior;
+- payment-method behavior can differ from Live Mode; and
+- Test Mode collection is not impact evidence.
+
+Use one or a few Test Mode Links for the live proof. Keep the batch evaluation provider-neutral and synthetic.
+
+### Not in the hackathon core
+
+- Optimizer or AI gateway routing;
+- authentic payment degradation;
+- Magic Checkout abandonment;
+- direct mandate management;
+- Subscription retry scheduling;
+- full Invoice/GST generation;
+- Smart Collect activation;
+- production SMS, email, WhatsApp, or voice delivery; and
+- live financing or credit decisions.
+
+These can appear only as future adapters, not completed capabilities.
+
+## 14. Revised milestone order
+
+### Current foundation
+
+Already present:
+
+- Test Mode Standard Payment Link creation;
+- signed raw-body webhook verification;
+- duplicate-event protection;
+- one operational case that becomes recovered from a verified payment;
+- deterministic synthetic portfolio generation;
+- fixed age-based baseline;
+- case states, partial payments, promises, disputes, guardrails, audit events, and metrics; and
+- reproducible simulation artifacts.
+
+### Milestone 3 — Native baseline and capacity
+
+- Add a Razorpay-native reminder baseline distinct from the finance-age baseline.
+- Add daily portfolio contact and human-review budgets.
+- Add ACT NOW and WAIT / PROTECTED queue semantics.
+- Ensure the same policy limits apply to all comparable strategies.
+
+**Done when:** strategies must choose which eligible cases not to contact and native automation is represented honestly.
+
+### Milestone 4 — Frozen paired evaluation environment
+
+- Pre-generate potential outcomes for case/day/action combinations.
+- Save the potential-outcome bank and hash with every run.
+- Add scenario families and held-out seed sets.
+- Remove any strategy access to hidden behavior.
+- Add comparison reconciliation and assumption manifests.
+
+**Done when:** a third party can reproduce and inspect why the strategy results differ.
+
+### Milestone 5 — Hybrid Recoup agent
+
+- Use AI to extract structured signals from customer text and collections notes.
+- Produce a schema-validated bounded action proposal.
+- Store facts, reason, confidence, and model version.
+- Apply deterministic policy after every proposal.
+- Allocate eligible actions under the daily capacity budget.
+- Cache batch decisions for reproducible evaluation.
+
+**Done when:** the agent completes a held-out batch without hidden-state access, invalid actions, or policy bypass.
+
+### Milestone 6 — Recovery Frontier
+
+- Compare native baseline, finance baseline, and Recoup.
+- Plot simulated recovery against contact/review burden.
+- Add budget and scenario controls.
+- Show uncertainty/range across held-out seeds.
+- Attribute every difference to case-level decisions.
+- Make protected WAIT decisions visible.
+
+**Done when:** a judge can understand the decision advantage, burden trade-off, evidence source, and assumptions in under one minute.
+
+### Milestone 7 — Live partial payment
+
+- Extend operational cases narrowly for partially paid state and outstanding balance.
+- Enable partial payment on the demo Payment Link.
+- Process payment_link.partially_paid and payment_link.paid idempotently.
+- Handle delayed and out-of-order events without balance regression.
+- Stop or adjust outreach immediately after verified collection.
+
+**Done when:** one real Test Mode partial payment reduces the correct case balance exactly once.
+
+### Milestone 8 — Commitment-aware recovery
+
+- Parse the live ambiguous English/Hinglish response.
+- Store a dated, amount-specific promise and possible dispute.
+- Gate the selected concession or ambiguity through human approval.
+- Protect the promise through its due date.
+- Reallocate the freed contact slot.
+- Re-evaluate full, partial, and broken commitments.
+
+**Done when:** the live replay explains both the customer-level recovery and the portfolio-level capacity change.
+
+### Milestone 9 — Judge-facing workspace
+
+- Build Command Center, Decision Replay, and Evidence Lab only.
+- Add provenance badges, metric definitions, and limitations.
+- Add deterministic demo reset and seeded scenarios.
+- Add a tested live-payment fixture and recorded fallback.
+- Rehearse the three-minute flow and skeptical judge questions.
+
+**Done when:** the complete story remains coherent even if the external payment step fails.
+
+## 15. Scope decisions
+
+| Feature | Decision | Reason |
+| --- | --- | --- |
+| Intervention-vs-wait agent | BUILD | Core differentiated recovery decision. |
+| Daily contact/reviewer capacity | BUILD | Makes prioritization economically meaningful. |
+| Razorpay-native reminder baseline | BUILD | Prevents an artificially weak comparison. |
+| Recovery Frontier | BUILD | Strongest measurable and visual portfolio moment. |
+| Paired potential-outcome bank | BUILD | Makes synthetic comparison reproducible and inspectable. |
+| Promise-aware partial-payment case | BUILD | Strongest live B2B recovery journey. |
+| Policy, approval, and audit replay | BUILD | Makes agent autonomy bounded and credible. |
+| Payment Link partial/full webhook reconciliation | BUILD | Connects the demo to verified Razorpay money facts. |
+| Cross-product case model | MODIFY | Keep conceptual adapter boundaries; implement Payment Links only. |
+| Natural-language policy compiler | DEFER | Visually interesting but supporting, not the recovery mechanism. |
+| Smart Collect adapter | DEFER | Valuable B2B rail but activation and scope risk are unnecessary. |
+| Subscription recovery | DEFER | Native retries reduce differentiation and widen scope. |
+| Checkout abandonment | DEFER | B2C-adjacent and entitlement-dependent. |
+| Multiple role-specific portals | DROP | UI breadth obscures the core decision loop. |
+| Generic reminders as innovation | DROP | Razorpay already supplies them. |
+| AI gateway routing or payment confirmation | DROP | Duplicative and financially unsafe. |
+| Production multichannel delivery | DROP for hackathon | Consent, delivery, and integration work do not strengthen the proof enough. |
+
+## 16. Judge critiques of the candidate concepts
+
+### Selected: intervention-vs-wait recovery agent
+
+~~~yaml
+Feature: Intervention-vs-wait agent with Recovery Frontier
+Track relevance: CORE
+Expected revenue impact: Allocates scarce interventions only where acting is expected to add recovery beyond waiting or native automation, while protecting promises and ambiguous payment states.
+How impact can be measured: Paired held-out synthetic evaluation under identical portfolios, policies, contact budgets, native assumptions, and frozen potential outcomes.
+Baseline: Razorpay-native Payment Link/reminder behavior; fixed finance age-bucket strategy as a second baseline.
+Evidence:
+  Razorpay Test Mode: Proves hosted collection, partial/full payment events, signature verification, correlation, and idempotent ledger updates.
+  Synthetic receivables: Supply controlled overdue portfolios and business context.
+  Simulated customer behavior: Supplies disclosed potential outcomes for act, wait, promise, dispute, and partial-payment paths.
+  Measured agent outcomes: Structured proposals, policy results, capacity allocation, actions, and decision attribution.
+  Assumptions: Intervention effect, spontaneous payment, contact cost, promise reliability, dispute propensity, and outcome attribution.
+Razorpay overlap: Razorpay owns collection primitives and native reminders; Recoup owns intervention-vs-wait strategy, business context, capacity allocation, promises, policy, and comparison.
+Demo value: HIGH
+Evaluation risks:
+  - Synthetic assumptions could still favor Recoup.
+  - Expected incremental value is not calibrated without merchant data.
+  - A complex chart could obscure the live cash loop.
+Likely judge challenge: How do you know acting caused the difference rather than your simulator?
+Recommendation: BUILD
+Reason: It is central, differentiated, visibly measurable, feasible on the current foundation, and honest when presented as paired synthetic evidence plus verified Test Mode integration.
+~~~
+
+### Supporting: promise-centric recovery
+
+~~~yaml
+Feature: AI promise-to-pay and partial-payment workflow
+Track relevance: CORE
+Expected revenue impact: Converts ambiguous responses into dated commitments, enables immediate partial collection, suppresses wasteful contact, and reactivates broken promises.
+How impact can be measured: Partial/full recovery, promise fulfillment, contacts avoided, broken-promise reactivation, and verified Test Mode collection.
+Baseline: Fixed reminders with no interpretation of unstructured commitment.
+Evidence:
+  Razorpay Test Mode: Proves partial/full Link payment and financial state.
+  Synthetic receivables: Supply account and aging context.
+  Simulated customer behavior: Supplies promise and dispute responses outside the live case.
+  Measured agent outcomes: Extracted intent, proposal, policy decision, and queue reallocation.
+  Assumptions: Promise reliability and the effect of protecting or following up commitments.
+Razorpay overlap: Razorpay accepts partial payments but does not supply the documented business-context promise workflow used here.
+Demo value: HIGH
+Evaluation risks:
+  - Promise-to-pay is already an example hackathon direction.
+  - One scripted live response can appear cherry-picked.
+Likely judge challenge: Is this more than extracting a date and generating a Payment Link?
+Recommendation: MODIFY
+Reason: Build it as the live proof and a capacity-reallocation input, not as the entire product thesis.
+~~~
+
+### Future: broad cross-product recovery control plane
+
+~~~yaml
+Feature: Normalize Payment Links, Invoices, Subscriptions, failures, and Smart Collect into one recovery plane
+Track relevance: CORE
+Expected revenue impact: Could prioritize and coordinate recovery across fragmented payment products.
+How impact can be measured: Product-specific case outcomes and verified collections compared with each product's native behavior.
+Baseline: Independent native product automation and dashboards.
+Evidence:
+  Razorpay Test Mode: Varies by product and account entitlement.
+  Synthetic receivables: Needed for cross-product workload.
+  Simulated customer behavior: Needed for outreach outcomes.
+  Measured agent outcomes: Cross-product actions and policy decisions.
+  Assumptions: Product access, state normalization, and comparable attribution.
+Razorpay overlap: Strong differentiation at the orchestration layer but very high implementation and entitlement surface.
+Demo value: MEDIUM
+Evaluation risks:
+  - Shallow integrations.
+  - Account activation blockers.
+  - Too many states for a three-minute narrative.
+Likely judge challenge: Which of these integrations actually works end to end?
+Recommendation: DEFER
+Reason: Keep it as the product vision, but implement one excellent Payment Link path for the hackathon.
+~~~
+
+## 17. Likely judge questions
+
+### “Razorpay already sends reminders. What did you build?”
+
+Razorpay executes collection and native reminders. Recoup decides whether an additional intervention is eligible and incrementally worthwhile, allocates limited capacity, interprets promises and disputes, applies policy, and measures the decision against the native baseline.
+
+### “Would these customers have paid anyway?”
+
+Show spontaneous synthetic outcomes, the native-reminder baseline, paired potential outcomes, held-out seeds, and the Recovery Frontier. State plainly that the result is simulated rather than a real causal estimate.
+
+### “Did you design the simulator so Recoup wins?”
+
+Show the frozen scenario manifest and hash, common potential-outcome bank, held-out seeds, conservative/adversarial results, and any case or scenario where Recoup loses.
+
+### “Why is this AI?”
+
+Replay the ambiguous response, show structured signal extraction and the bounded next-action proposal, then show deterministic policy and capacity allocation. Fixed rules cannot reliably interpret the message, but AI still cannot alter financial truth.
+
+### “Why does WAIT matter in revenue recovery?”
+
+Waiting protects active promises, avoids duplicate collection during ambiguous payment state, respects cooldowns, and frees scarce recovery capacity for a case where action can add more value.
+
+### “Is that money real?”
+
+The live Payment Link payment is a verified Razorpay Test Mode event, not real money. The portfolio result is synthetic and labelled. The demo proves integration correctness and strategy behavior, not real merchant uplift.
+
+## 18. Three-minute demo
+
+1. **Problem — 15 seconds:** “We have ₹38 lakh overdue and only 20 safe customer contacts today. Razorpay can collect and remind; the missing decision is where intervention adds value.”
+2. **Recovery Frontier — 40 seconds:** compare native reminders, finance rules, and Recoup at the same budget; switch once to the conservative scenario.
+3. **Decision attribution — 25 seconds:** open one ACT NOW case and one protected WAIT case to show why the portfolio differs.
+4. **Live customer response — 35 seconds:** paste the ambiguous English/Hinglish message and show structured AI interpretation.
+5. **Policy and approval — 20 seconds:** possible dispute triggers human review; approve the safe partial-payment action.
+6. **Razorpay collection — 35 seconds:** complete the Test Mode partial payment or use the prepared fallback.
+7. **Verified closure loop — 20 seconds:** show signed event, exact balance reduction, protected promise, contact-slot reallocation, and audit timeline.
+8. **Close — 10 seconds:** “Recoup knows when to act, when to wait, and can prove every recovery decision.”
+
+## 19. Definition of winning completion
+
+The project is ready only when it can show:
+
+- a Razorpay-native reminder baseline rather than an artificially weak alternative;
+- one fixed portfolio capacity that forces meaningful prioritization;
+- one agent-selected ACT NOW case and one deliberately protected WAIT case;
+- one paired, held-out synthetic comparison with frozen assumptions and case-level attribution;
+- one Recovery Frontier that shows recovery versus contact burden;
+- one ambiguous response converted into a bounded partial-payment and promise proposal;
+- one deterministic policy approval, block, or escalation;
+- one verified Razorpay Test Mode partial or full payment tied to the correct case exactly once;
+- one immediate queue reallocation after that verified event;
+- a complete decision replay and reconciled ledger; and
+- unmistakable separation of Test Mode, synthetic, simulated, measured, and assumed evidence.
+
+The final positioning is:
+
+> **Recoup is the recovery agent that knows when intervention adds value, when silence is safer, and how to turn the right decision into verified collection through Razorpay.**

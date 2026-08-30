@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe("Razorpay Payment Link client", () => {
-  it("sends a full-payment Test Mode request with local case references", async () => {
+  it("sends a full-payment Test Mode request with a unique attempt reference", async () => {
     process.env.DATABASE_URL = "postgresql://recovery:recovery@localhost/recovery";
     process.env.APP_URL = "https://recovery.example.com";
     process.env.RAZORPAY_KEY_ID = "rzp_test_example";
@@ -21,10 +21,15 @@ describe("Razorpay Payment Link client", () => {
         amount: 5_000_000,
         currency: "INR",
         accept_partial: false,
-        reference_id: "rc_m1_inv_001",
         reminder_enable: false,
         callback_method: "get",
+        notes: {
+          recovery_case_id: "rc_m1_inv_001",
+          invoice_number: "INV-001",
+        },
       });
+      expect(request.reference_id).toMatch(/^rec_[a-f0-9]{10}_[a-f0-9]{12}$/);
+      expect(String(request.reference_id).length).toBeLessThanOrEqual(40);
       expect(request.callback_url).toBe(
         "https://recovery.example.com/?case=rc_m1_inv_001&checkout=returned",
       );
@@ -35,7 +40,7 @@ describe("Razorpay Payment Link client", () => {
         status: "created",
         amount: 5_000_000,
         currency: "INR",
-        reference_id: "rc_m1_inv_001",
+        reference_id: String(request.reference_id),
       });
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
