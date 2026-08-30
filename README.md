@@ -11,7 +11,43 @@ Milestone 1 proves a single recovery loop: a local overdue invoice becomes a Raz
 - One idempotent synthetic recovery case (`INV-001`, ₹50,000)
 - An operator workspace that polls while the verified webhook is pending
 
-AI decisions, communication workflows, partial payments, authentication, and production deployment are intentionally out of scope.
+The operational loop remains intentionally small. A separate pure TypeScript simulation harness now evaluates bounded recovery workflows without changing the PostgreSQL schema or calling Razorpay.
+
+## Deterministic recovery simulation (Milestone 2)
+
+Run a reproducible synthetic benchmark:
+
+```bash
+bun run simulate --cases 1000 --days 30 --seed 42
+# Inspect one complete journey:
+bun run simulate --cases 100 --days 30 --seed 42 --case sim-case-000001
+```
+
+**Simulation outcomes are synthetic and are not claims about actual Razorpay merchant recovery performance.** All receivables, customer behavior, responses, promises, disputes, and payments produced by this harness are synthetic. The harness makes no network or database calls. Razorpay Test Mode continues to prove only the separate Milestone 1 integration behavior.
+
+### Architecture and implementation note
+
+- The operational `recovery_cases` and Razorpay-specific `payments` tables are unchanged. The simulator reuses their conceptual accounting rule—accepted payments reduce outstanding money exactly once—but uses provider-neutral, unmistakably synthetic payment events.
+- Simulation-only cases, promises, latent customer traits, audit events, and metrics live under `src/simulation`. Keeping them out of operational tables avoids hidden synthetic attributes contaminating merchant state and avoids a risky webhook refactor.
+- A strategy receives only an explicit observable projection: invoice and balance facts, dates, visible history, contacts, promises, and current status. Hidden response, ability, willingness, dispute, and reliability assumptions stay in a separate environment map.
+- `RecoveryStrategy` is pluggable. The included baseline uses deterministic observable-only rules; a separate policy engine enforces terminal stops, dispute/escalation stops, cooldowns, contact limits, promise protection, and high-value human review.
+- Money is integer paise. Payments are capped at the remaining balance, synthetic event and payment identifiers are unique, and final metrics are derived from authoritative case state and reconciled against ending outstanding balances.
+
+### Determinism, assumptions, and day order
+
+The logical run ID is derived from simulator version and normalized configuration. A fixed epoch (`2026-01-01` by default), deterministic IDs, stable case ordering, and keyed random draws ensure unrelated outcomes do not shift when another random draw occurs. Identical version, seed, strategy, scenario, and policy configuration produce identical domain artifacts.
+
+The documented `standard` scenario uses five centralized synthetic profiles: reliable late payer, cash-flow constrained, low responsiveness, dispute prone, and high risk. Invoice amounts use a skewed mixture (45% small, 35% medium, 17% large, 3% high value), while overdue dates span 1–5, 6–15, 16–30, 31–60, and 61–100 days. These are evaluation assumptions, not Razorpay data, and external validity is a known limitation.
+
+Each virtual day processes cases in stable ID order: due promise payments; overdue promise breakage; spontaneous synthetic payments; observable projection; proposed strategy action; policy decision; executed bounded action; synthetic response/payment/promise/dispute; invariant validation. Due-day promise realization therefore occurs before any new contact. Active promises suppress contact through their due day. A smaller due payment marks a promise partially fulfilled; an unpaid active promise becomes broken on the following day and becomes eligible for follow-up.
+
+### Artifacts and metric semantics
+
+Runs atomically replace `simulation-results/run-<logical-id>/` and write `config.json`, observable `portfolio.json`, explicitly hidden `simulation-state.json`, `cases-final.json`, ordered `audit-events.jsonl`, `metrics.json`, and `summary.md`. Generated run directories are ignored by Git and contain no credentials or real customer information.
+
+Recovery rate is simulated recovered paise divided by starting outstanding paise. Fully recovered means ending outstanding is zero; partially recovered means the run recovered positive money while a positive balance remains; unresolved excludes fully recovered, disputed, escalated, and closed cases. Promise fulfillment rate uses all created promises as its denominator. Zero denominators return zero. INR formatting is presentation-only.
+
+Current limitations: assumptions are hand-authored, there is no causal or real-world impact claim, only the baseline strategy and standard scenario exist, and no communication channel is invoked. A future AI strategy implements `RecoveryStrategy` and can be paired against the baseline on the exact same observable cases and keyed hidden environment without changing the engine.
 
 ## Local setup
 
@@ -74,6 +110,7 @@ bun run build           # production build
 bun run lint            # ESLint
 bun run typecheck       # TypeScript without emit
 bun test                # unit tests
+bun run simulate --cases 1000 --days 30 --seed 42
 bun run db:generate     # generate a migration from the schema
 bun run db:migrate      # apply migrations
 bun run db:seed         # idempotently create the Milestone 1 fixture
