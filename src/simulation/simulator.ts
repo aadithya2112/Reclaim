@@ -27,6 +27,8 @@ import type {
   WorkCandidate,
 } from "./types";
 import { SIMULATOR_VERSION } from "./types";
+import { FrozenRecoupDecisions, recoupReplayDecision } from "./recoup-agent";
+import type { DecisionManifest } from "./recoup-agent";
 
 export const DEFAULT_POLICY: PolicyConfig = { maxContactAttempts: 5, cooldownDays: 2, highValueThresholdPaise: 2_000_000 };
 export const DEFAULT_CONFIG: SimulationConfig = {
@@ -106,6 +108,8 @@ export function generatePortfolio(config: SimulationConfig): { cases: Simulation
       contactAttempts: attempts,
       lastContactDay: attempts ? -keyedInt(config.seed, 1, 5, "last-contact", i) : null,
       history,
+      customerText: keyedUnit(config.seed, "text", i) < .34 ? "Sir, payment Friday kar denge." : keyedUnit(config.seed, "text", i) < .58 ? "Please verify invoice amount; cash flow is tight." : "Please share payment link.",
+      collectionNote: attempts ? "Previous finance follow-up recorded." : "No prior note.",
       promises: [],
       dispute,
       escalated: false,
@@ -157,9 +161,17 @@ export class NoInterventionStrategy implements RecoveryStrategy {
   decide(): RecoveryDecision { return { action: "WAIT", reason: "No-intervention comparator: allow only synthetic spontaneous and existing-promise outcomes." }; }
 }
 
+/** Replay-only strategy: network calls are forbidden during simulation. */
+export class RecoupAgentStrategy implements RecoveryStrategy {
+  readonly name = "recoup-agent" as const;
+  constructor(private readonly frozen: FrozenRecoupDecisions) {}
+  decide(context: ObservableRecoveryContext): RecoveryDecision { return recoupReplayDecision(context, this.frozen); }
+}
+
 export function createStrategy(name: StrategyName): RecoveryStrategy {
   if (name === "razorpay-native-reminders") return new RazorpayNativeReminderBaselineStrategy();
   if (name === "no-intervention") return new NoInterventionStrategy();
+  if (name === "recoup-agent") throw new Error("recoup-agent requires a frozen decision manifest; use RecoupAgentStrategy.");
   return new FinanceAgeBucketStrategy();
 }
 
@@ -176,6 +188,9 @@ export function evaluatePolicy(c: ObservableRecoveryContext, proposed: RecoveryA
 }
 
 function candidateComparator(a: WorkCandidate, b: WorkCandidate): number {
+  if (a.heuristicOpportunityScore !== undefined || b.heuristicOpportunityScore !== undefined) {
+    if ((a.heuristicOpportunityScore ?? 0) !== (b.heuristicOpportunityScore ?? 0)) return (b.heuristicOpportunityScore ?? 0) - (a.heuristicOpportunityScore ?? 0);
+  }
   if (a.hasBrokenPromise !== b.hasBrokenPromise) return a.hasBrokenPromise ? -1 : 1;
   if (a.outstandingPaise !== b.outstandingPaise) return b.outstandingPaise - a.outstandingPaise;
   if (a.daysOverdue !== b.daysOverdue) return b.daysOverdue - a.daysOverdue;
@@ -305,7 +320,7 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
         if (action !== "WAIT") unboundedActions.push({ caseId: c.id, action, reason: policy.reason });
         continue;
       }
-      candidates.push({ caseId: c.id, action, capacityKind, outstandingPaise: c.outstandingPaise, daysOverdue: context.daysOverdue, hasBrokenPromise: c.promises.some((promise) => promise.status === "BROKEN"), contactAttempts: c.contactAttempts });
+      candidates.push({ caseId: c.id, action, capacityKind, outstandingPaise: c.outstandingPaise, daysOverdue: context.daysOverdue, hasBrokenPromise: c.promises.some((promise) => promise.status === "BROKEN"), contactAttempts: c.contactAttempts, heuristicOpportunityScore: typeof decision.metadata?.heuristicOpportunityScore === "number" ? decision.metadata.heuristicOpportunityScore : undefined });
       audit(c, day, "QUEUE_CLASSIFIED", "CAPACITY", `ACT NOW candidate requires ${capacityKind === "CONTACT" ? "contact" : "human-review"} capacity.`, { action, metadata: { queue: "ACT_NOW", capacityKind, proposedAction: decision.action, rule: policy.rule } });
     }
 
@@ -337,7 +352,9 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
       c.contactAttempts++;
       c.lastContactDay = day;
       transition(c, "CONTACTED");
-      audit(c, day, "CUSTOMER_CONTACTED", "SIMULATION", "Synthetic contact executed; no external channel or Razorpay reminder was invoked.", { action: item.action });
+      const relationshipMultiplier = config.scenario === "relationship-sensitive" && (c.history.historicalInvoices >= 10 || c.history.historicalLatePayments >= 4) ? 1.5 : 1;
+      const burdenPaise = Math.round(10_000 * scenarioManifest(config.scenario).assumptions.contactCostMultiplier * relationshipMultiplier);
+      audit(c, day, "CUSTOMER_CONTACTED", "SIMULATION", "Synthetic contact executed; no external channel or Razorpay reminder was invoked.", { action: item.action, metadata: { syntheticRelationshipBurdenPaise: burdenPaise, contactCostMultiplier: scenarioManifest(config.scenario).assumptions.contactCostMultiplier, relationshipMultiplier } });
       const hidden = generated.hidden[c.id];
       const potential = bank.outcomes[c.id].actionsByDay[String(day)]?.[item.action]?.[String(c.contactAttempts)];
       if (!potential) throw new Error(`Potential-outcome bank is incomplete for ${c.id}/${day}/${item.action}/${c.contactAttempts}`);
@@ -380,13 +397,13 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   return { runId, config, initialPortfolio, hiddenState: generated.hidden, potentialOutcomeBankHash: bank.sha256, finalCases: cases, auditEvents: events, payments, dailyCapacity, metrics: calculateMetrics(initialPortfolio, cases, events, dailyCapacity) };
 }
 
-export function compareStrategies(input: SimulationConfigInput = {}, names: StrategyName[] = STRATEGY_NAMES): StrategyComparison {
+export function compareStrategies(input: SimulationConfigInput = {}, names: StrategyName[] = STRATEGY_NAMES, recoupManifest?: DecisionManifest): StrategyComparison {
   const uniqueNames = [...new Set(names)];
   if (!uniqueNames.length) throw new Error("At least one strategy is required for comparison");
   const firstConfig: SimulationConfig = { ...DEFAULT_CONFIG, ...input, strategy: uniqueNames[0], policy: { ...DEFAULT_POLICY, ...input.policy }, capacity: { ...DEFAULT_CONFIG.capacity, ...input.capacity } };
   validateConfig(firstConfig);
   const generated = generatePortfolio(firstConfig); const bank = createPotentialOutcomeBank(firstConfig, generated.cases);
-  const results = uniqueNames.map((strategy) => runSimulation({ ...input, strategy }, undefined, bank));
+  const results = uniqueNames.map((strategy) => runSimulation({ ...input, strategy }, strategy === "recoup-agent" ? new RecoupAgentStrategy(new FrozenRecoupDecisions(recoupManifest ?? (() => { throw new Error("recoup-agent comparison requires a frozen decision manifest"); })())) : undefined, bank));
   const first = results[0].config;
   const commonConfig = normalizeEnvironmentConfig(first);
   const comparisonId = createHash("sha256").update(`${SIMULATOR_VERSION}|comparison|${stableJson(commonConfig)}|${bank.sha256}|${[...uniqueNames].sort().join("|")}`).digest("hex").slice(0, 16);
@@ -418,6 +435,7 @@ export function calculateMetrics(initial: SimulationCase[], finalCases: Simulati
   const count = (type: string) => events.filter((event) => event.type === type).length;
   const action = (value: RecoveryAction) => events.filter((event) => event.type === "ACTION_EXECUTED" && event.action === value).length;
   const contacts = count("CUSTOMER_CONTACTED");
+  const syntheticRelationshipBurdenPaise = events.filter((event) => event.type === "CUSTOMER_CONTACTED").reduce((sum, event) => sum + Number(event.metadata?.syntheticRelationshipBurdenPaise ?? 0), 0);
   const promises = finalCases.flatMap((c) => c.promises);
   const recoveryDays = full.map((c) => c.recoveredDay).filter((value): value is number => value !== null);
   const sumCapacity = (key: keyof DailyCapacityRecord) => dailyCapacity.reduce((sum, day) => sum + Number(day[key]), 0);
@@ -433,7 +451,7 @@ export function calculateMetrics(initial: SimulationCase[], finalCases: Simulati
     promises: { created: promises.length, fulfilled: promises.filter((p) => p.status === "FULFILLED").length, partiallyFulfilled: promises.filter((p) => p.status === "PARTIALLY_FULFILLED").length, broken: promises.filter((p) => p.status === "BROKEN").length, fulfillmentRate: promises.length ? promises.filter((p) => p.status === "FULFILLED").length / promises.length : 0 },
     safety: { policyBlocks: count("ACTION_BLOCKED"), cooldownBlocks: events.filter((e) => e.metadata?.rule === "COOLDOWN").length, communicationLimitBlocks: events.filter((e) => e.metadata?.rule === "CONTACT_LIMIT").length, promiseProtectionBlocks: events.filter((e) => e.metadata?.rule === "PROMISE_PROTECTION").length, disputeStops: events.filter((e) => e.metadata?.rule === "DISPUTE_STOP").length, terminalStops: events.filter((e) => e.metadata?.rule === "TERMINAL_STOP").length, highValueEscalations: events.filter((e) => e.metadata?.rule === "HIGH_VALUE").length, protectedCases: protectedCaseIds.size, protectedDecisions: sumCapacity("protectedDecisions"), protectedContactsAvoided: sumCapacity("protectedContactActions") },
     capacity: { contactBudget, contactConsumed, contactDeferredEligible: sumCapacity("contactDeferredEligible"), contactUtilization: contactBudget ? contactConsumed / contactBudget : 0, humanReviewBudget: reviewBudget, humanReviewConsumed: reviewConsumed, humanReviewDeferredEligible: sumCapacity("humanReviewDeferredEligible"), humanReviewUtilization: reviewBudget ? reviewConsumed / reviewBudget : 0, capacitySelected: count("CAPACITY_SELECTED"), capacityDeferred: count("CAPACITY_DEFERRED") },
-    efficiency: { interventionsPerFullRecovery: full.length ? contacts / full.length : 0, recoveredPaisePerContact: contacts ? recovered / contacts : 0, averageDaysToRecovery: recoveryDays.length ? recoveryDays.reduce((a, b) => a + b, 0) / recoveryDays.length : 0 },
+    efficiency: { interventionsPerFullRecovery: full.length ? contacts / full.length : 0, recoveredPaisePerContact: contacts ? recovered / contacts : 0, syntheticRelationshipBurdenPaise, averageSyntheticBurdenPaisePerContact: contacts ? syntheticRelationshipBurdenPaise / contacts : 0, averageDaysToRecovery: recoveryDays.length ? recoveryDays.reduce((a, b) => a + b, 0) / recoveryDays.length : 0 },
     reconciliation: { endingOutstandingPaise: ending, expectedEndingOutstandingPaise: starting - recovered, valid: ending === starting - recovered && recovered <= starting },
   };
 }
