@@ -13,7 +13,7 @@ Milestone 1 proves a single recovery loop: a local overdue invoice becomes a Raz
 
 The operational loop remains intentionally small. A separate pure TypeScript simulation harness now evaluates bounded recovery workflows without changing the PostgreSQL schema or calling Razorpay.
 
-## Deterministic recovery simulation (Milestones 2–3)
+## Deterministic recovery simulation (Milestones 2–4)
 
 Run a reproducible synthetic benchmark:
 
@@ -23,8 +23,10 @@ bun run simulate --cases 1000 --days 30 --seed 42
 bun run simulate --cases 100 --days 30 --seed 42 --case sim-case-000001
 # Run the Razorpay-native baseline with explicit daily budgets:
 bun run simulate --strategy razorpay-native-reminders --contact-capacity 25 --review-capacity 5
-# Compare all available strategies on equivalent starting portfolios:
-bun run simulate --compare --cases 1000 --days 30 --seed 42 --contact-capacity 25 --review-capacity 5
+# Compare all strategies in the default development set and standard scenario:
+bun run simulate --compare --cases 1000 --days 30 --scenario standard --evaluation-set development --contact-capacity 25 --review-capacity 5
+# Intentional final held-out evaluation (do not tune strategy behavior to these results):
+bun run simulate --compare --cases 1000 --days 30 --scenario adversarial --evaluation-set held-out --contact-capacity 25 --review-capacity 5
 ```
 
 **Simulation outcomes are synthetic and are not claims about actual Razorpay merchant recovery performance.** All receivables, customer behavior, responses, promises, disputes, and payments produced by this harness are synthetic. The harness makes no network or database calls. Razorpay Test Mode continues to prove only the separate Milestone 1 integration behavior.
@@ -51,7 +53,7 @@ Razorpay documents configurable Payment Link reminders over SMS/email and suppor
 
 The logical run ID is derived from simulator version and normalized configuration. A fixed epoch (`2026-01-01` by default), deterministic IDs, stable case ordering, and keyed random draws ensure unrelated outcomes do not shift when another random draw occurs. Identical version, seed, strategy, scenario, and policy configuration produce identical domain artifacts.
 
-The documented `standard` scenario uses five centralized synthetic profiles: reliable late payer, cash-flow constrained, low responsiveness, dispute prone, and high risk. Invoice amounts use a skewed mixture (45% small, 35% medium, 17% large, 3% high value), while overdue dates span 1–5, 6–15, 16–30, 31–60, and 61–100 days. These are evaluation assumptions, not Razorpay data, and external validity is a known limitation.
+The versioned scenario manifests define four hand-authored synthetic families: `conservative` (more spontaneous payment and smaller intervention effects), `standard`, `adversarial` (low response, weak promises, more disputes), and `relationship-sensitive` (higher relationship/contact costs and softer automated escalation). They explicitly disclose responsiveness, ability/willingness, spontaneous payment, promise reliability, dispute propensity, action modifiers, and relationship assumptions. They are not calibrated Razorpay or merchant probabilities, and no scenario is tuned to guarantee a future Recoup strategy wins. Invoice amounts use a skewed mixture (45% small, 35% medium, 17% large, 3% high value), while overdue dates span 1–5, 6–15, 16–30, 31–60, and 61–100 days.
 
 Each virtual day has four deterministic portfolio phases: (1) due promise payments, promise breakage, and spontaneous synthetic payments; (2) observable strategy and policy evaluation for every case; (3) global contact and human-review allocation; and (4) execution of capacity-selected work. Due-day promise realization therefore occurs before any new contact. Active promises suppress contact through their due day. A smaller due payment marks a promise partially fulfilled; an unpaid active promise becomes broken on the following day and becomes eligible for follow-up.
 
@@ -59,11 +61,11 @@ Eligible work is never selected by incidental array order. Each capacity queue i
 
 ### Artifacts and metric semantics
 
-Single runs atomically replace `simulation-results/run-<logical-id>/` and write `config.json`, observable `portfolio.json`, explicitly hidden `simulation-state.json`, `cases-final.json`, `synthetic-payments.jsonl`, ordered `audit-events.jsonl`, `daily-capacity.json`, `metrics.json`, and `summary.md`. Comparison runs write `simulation-results/comparison-<logical-id>/comparison.json`, `comparison.md`, and one complete artifact directory per strategy. Generated run directories are ignored by Git and contain no credentials or real customer information.
+Single runs atomically replace `simulation-results/run-<logical-id>/` and write `config.json`, observable `portfolio.json`, explicitly hidden `simulation-state.json`, `cases-final.json`, `synthetic-payments.jsonl`, ordered `audit-events.jsonl`, `daily-capacity.json`, `metrics.json`, and `summary.md`. Comparison runs additionally write `scenario-manifest.json`, `potential-outcome-bank.json` labelled **HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES**, `comparison.json`, `comparison.md`, and complete artifacts per strategy. The SHA-256 bank hash is present in the comparison and every constituent run; reconciliation confirms common portfolio, hidden state, policy, capacity, scenario, evaluation-set inputs, and per-case money.
 
 Recovery rate is simulated recovered paise divided by starting outstanding paise. Fully recovered means ending outstanding is zero; partially recovered means the run recovered positive money while a positive balance remains; unresolved excludes fully recovered, disputed, escalated, and closed cases. Promise fulfillment rate uses all created promises as its denominator. Capacity metrics report total budget, consumption, deferred eligible decisions, protected decisions/contacts, and utilization separately for contacts and reviews. Zero denominators return zero. INR formatting is presentation-only.
 
-Current limitations: assumptions are hand-authored, only the `standard` scenario exists, no AI strategy exists, and no communication channel is invoked. Strategies in a comparison receive equivalent deterministic starting portfolios and keyed hidden assumptions, but Milestone 4's frozen case/day/action potential-outcome bank is deliberately not implemented yet. Consequently comparison differences are reproducible synthetic scenario outputs, not paired causal estimates, calibrated probabilities, or evidence of real-world recovery. Razorpay Test Mode remains separate evidence for integration behavior only.
+Comparisons use one materialized, versioned potential-outcome bank per comparison. It pre-generates state-independent unit draws for spontaneous payment, every case/day/contact action/feasible attempt, response, disputes, immediate full/partial payment, promise amount/due date, and promise realization. A strategy consumes only the draw for its executed action and never receives hidden profiles or the bank. This makes the result paired, reproducible, and inspectable; it does not establish real-world causality, calibrated probabilities, or merchant uplift. Development seeds are `[42, 91, 123]`; held-out seeds are `[2027, 3407, 9811]`. The repository cannot cryptographically hide held-out files from its developers—process discipline, not secrecy, prevents tuning to final results. Razorpay Test Mode remains separate evidence for integration behavior only.
 
 ## Local setup
 

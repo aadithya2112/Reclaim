@@ -11,6 +11,8 @@ import {
   RazorpayNativeReminderBaselineStrategy,
   runSimulation,
 } from "../src/simulation/simulator";
+import { createPotentialOutcomeBank, stableJson, validatePotentialOutcomeBank } from "../src/simulation/potential-outcomes";
+import { EVALUATION_SET_MANIFEST, SCENARIO_MANIFESTS } from "../src/simulation/scenarios";
 import type { SimulationCase, WorkCandidate } from "../src/simulation/types";
 
 describe("deterministic recovery simulation", () => {
@@ -111,12 +113,55 @@ describe("deterministic recovery simulation", () => {
     for (const day of contactDays) expect([0, 3, 7]).toContain(day);
   });
 
-  test("strategy comparison uses equivalent portfolios and states the Milestone 4 boundary", () => {
+  test("strategy comparison uses one frozen paired synthetic environment", () => {
     const comparison = compareStrategies({ caseCount: 40, days: 8, seed: 123, capacity: { dailyContactLimit: 5, dailyHumanReviewLimit: 2 } });
     expect(comparison.results.map((result) => result.config.strategy)).toEqual(["razorpay-native-reminders", "finance-age-bucket", "no-intervention"]);
     for (const result of comparison.results.slice(1)) expect(result.initialPortfolio).toEqual(comparison.results[0].initialPortfolio);
-    expect(comparison.pairedOutcomeStatus).toBe("NOT_IMPLEMENTED_MILESTONE_4_PENDING");
-    expect(comparison.limitation).toContain("not causal");
+    expect(comparison.pairedOutcomeStatus).toBe("FROZEN_PAIRED_SYNTHETIC");
+    expect(comparison.reconciliation.valid).toBe(true);
+    expect(comparison.potentialOutcomeBankHash).toHaveLength(64);
+    for (const result of comparison.results) expect(result.potentialOutcomeBankHash).toBe(comparison.potentialOutcomeBankHash);
+    expect(comparison.limitation).toContain("not a real-world causal claim");
+  });
+
+  test("bank is canonical across strategy ordering and portfolio case iteration", () => {
+    const config = { ...DEFAULT_CONFIG, caseCount: 12, days: 6, seed: 77 };
+    const portfolio = generatePortfolio(config).cases;
+    const forward = createPotentialOutcomeBank(config, portfolio);
+    const reverse = createPotentialOutcomeBank(config, [...portfolio].reverse());
+    expect(forward.sha256).toBe(reverse.sha256);
+    expect(stableJson(forward)).toBe(stableJson(reverse));
+    expect(compareStrategies(config, ["finance-age-bucket", "no-intervention"]).potentialOutcomeBankHash).toBe(compareStrategies(config, ["no-intervention", "finance-age-bucket"]).potentialOutcomeBankHash);
+  });
+
+  test("paired comparisons are deterministic and protect hidden bank from strategy context", () => {
+    const config = { caseCount: 25, days: 8, seed: 19, scenario: "adversarial" as const };
+    expect(compareStrategies(config)).toEqual(compareStrategies(config));
+    const context = projectObservable(generatePortfolio({ ...DEFAULT_CONFIG, caseCount: 1 }).cases[0], 0) as unknown as Record<string, unknown>;
+    expect("potentialOutcomeBank" in context).toBe(false);
+    expect("hiddenState" in context).toBe(false);
+  });
+
+  test("scenario and evaluation input change bank identity and manifests are explicit", () => {
+    const standard = compareStrategies({ caseCount: 10, days: 4, seed: 42, scenario: "standard", evaluationSet: "development" });
+    const adversarial = compareStrategies({ caseCount: 10, days: 4, seed: 42, scenario: "adversarial", evaluationSet: "development" });
+    const heldOut = compareStrategies({ caseCount: 10, days: 4, seed: 42, scenario: "standard", evaluationSet: "held-out" });
+    expect(standard.potentialOutcomeBankHash).not.toBe(adversarial.potentialOutcomeBankHash);
+    expect(standard.potentialOutcomeBankHash).not.toBe(heldOut.potentialOutcomeBankHash);
+    expect(Object.keys(SCENARIO_MANIFESTS).sort()).toEqual(["adversarial", "conservative", "relationship-sensitive", "standard"]);
+    expect(EVALUATION_SET_MANIFEST.sets.development).not.toEqual(EVALUATION_SET_MANIFEST.sets["held-out"]);
+  });
+
+  test("malformed or tampered outcome banks are rejected", () => {
+    const config = { ...DEFAULT_CONFIG, caseCount: 4, days: 3 };
+    const cases = generatePortfolio(config).cases;
+    const bank = createPotentialOutcomeBank(config, cases);
+    const tampered = structuredClone(bank);
+    tampered.outcomes[cases[0].id].spontaneousByDay["0"] = .999;
+    expect(() => validatePotentialOutcomeBank(tampered, config, cases)).toThrow("hash");
+    const incomplete = structuredClone(bank);
+    delete incomplete.outcomes[cases[0].id];
+    expect(() => validatePotentialOutcomeBank(incomplete, config, cases)).toThrow();
   });
 
   test("capacity validation accepts zero and rejects invalid budgets", () => {

@@ -2,7 +2,10 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { compareStrategies, formatTimeline, runSimulation, STRATEGY_NAMES } from "./simulator";
 import { SIMULATOR_VERSION } from "./types";
-import type { SimulationResult, StrategyComparison, StrategyName } from "./types";
+import { EVALUATION_SET_MANIFEST, SCENARIO_MANIFESTS } from "./scenarios";
+import type { EvaluationSetName, SimulationResult, StrategyComparison, StrategyName } from "./types";
+
+const EVALUATION_SEEDS = EVALUATION_SET_MANIFEST.sets;
 
 function options(argv: string[]) {
   const out: Record<string, string | boolean> = {};
@@ -43,7 +46,7 @@ async function recreateDirectory(root: string, name: string): Promise<string> {
 
 async function writeRun(result: SimulationResult, directory: string): Promise<void> {
   await Promise.all([
-    writeFile(`${directory}/config.json`, json({ simulatorVersion: SIMULATOR_VERSION, logicalRunId: result.runId, ...result.config, provenance: "SYNTHETIC_SIMULATION" })),
+    writeFile(`${directory}/config.json`, json({ simulatorVersion: SIMULATOR_VERSION, logicalRunId: result.runId, potentialOutcomeBankHash: result.potentialOutcomeBankHash, ...result.config, provenance: "SYNTHETIC_SIMULATION" })),
     writeFile(`${directory}/portfolio.json`, json(result.initialPortfolio)),
     writeFile(`${directory}/simulation-state.json`, json({ warning: "HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES", customers: result.hiddenState })),
     writeFile(`${directory}/cases-final.json`, json(result.finalCases)),
@@ -61,18 +64,46 @@ function summary(result: SimulationResult) {
 
 function comparisonMarkdown(comparison: StrategyComparison): string {
   const rows = comparison.results.map((result) => `| ${result.config.strategy} | ${inr(result.metrics.recovery.totalRecoveredPaise)} | ${(result.metrics.recovery.recoveryRate * 100).toFixed(2)}% | ${result.metrics.capacity.contactConsumed} | ${result.metrics.capacity.humanReviewConsumed} | ${result.metrics.capacity.contactDeferredEligible + result.metrics.capacity.humanReviewDeferredEligible} |`).join("\n");
-  return `# Synthetic strategy comparison\n\n**This is not a causal estimate or a claim about real merchant recovery.**\n\nAll strategies start from the same deterministic synthetic portfolio and use the same daily contact (${comparison.commonConfig.capacity.dailyContactLimit}) and human-review (${comparison.commonConfig.capacity.dailyHumanReviewLimit}) budgets. The harness invokes neither Razorpay nor a communication channel.\n\n| Strategy | Simulated recovery | Recovery rate | Contacts | Human reviews | Deferred eligible |\n| --- | ---: | ---: | ---: | ---: | ---: |\n${rows}\n\n## Evaluation boundary\n\n${comparison.limitation}\n\nThe Razorpay-native row models a disclosed fixed three-reminder Payment Link schedule on simulation days 0, 3, and 7. Razorpay documents configurable Payment Link reminders, but this schedule, delivery, response, and recovery are simulation assumptions.\n`;
+  return [
+    "# Synthetic strategy comparison",
+    "",
+    "**This is not a causal estimate or a claim about real merchant recovery.**",
+    "",
+    "**Paired synthetic status:** " + comparison.pairedOutcomeStatus + ". All strategies share a frozen portfolio, hidden profiles, and potential-outcome bank.",
+    "",
+    "- Scenario / version: " + comparison.scenarioManifest.name + " / " + comparison.scenarioManifest.version,
+    "- Evaluation set / seed: " + comparison.commonConfig.evaluationSet + " / " + comparison.commonConfig.seed,
+    "- Shared bank SHA-256: `" + comparison.potentialOutcomeBankHash + "`",
+    "- Reconciliation: " + (comparison.reconciliation.valid ? "valid" : "INVALID"),
+    "",
+    "| Strategy | Simulated recovery | Recovery rate | Contacts | Human reviews | Deferred eligible |",
+    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    rows,
+    "",
+    "## Evaluation boundary",
+    "",
+    comparison.limitation,
+    "",
+    "The Razorpay-native row models a disclosed fixed three-reminder Payment Link schedule on simulation days 0, 3, and 7. Razorpay documents configurable Payment Link reminders, but this schedule, delivery, response, and recovery are simulation assumptions.",
+    "",
+  ].join("\n");
 }
 
 async function main() {
   const args = options(process.argv.slice(2));
-  const allowed = new Set(["cases", "days", "seed", "strategy", "scenario", "output", "verbose", "case", "compare", "contact-capacity", "review-capacity"]);
+  const allowed = new Set(["cases", "days", "seed", "strategy", "scenario", "evaluation-set", "output", "verbose", "case", "compare", "contact-capacity", "review-capacity"]);
   for (const key of Object.keys(args)) if (!allowed.has(key)) throw new Error(`Unknown option --${key}`);
-  if (args.scenario !== undefined && args.scenario !== "standard") throw new Error("Only --scenario standard is currently supported");
+  if (args.scenario !== undefined && (typeof args.scenario !== "string" || !(args.scenario in SCENARIO_MANIFESTS))) throw new Error(`--scenario must be one of: ${Object.keys(SCENARIO_MANIFESTS).join(", ")}`);
+  const evaluationSet = (args["evaluation-set"] ?? "development") as EvaluationSetName;
+  if (!["development", "held-out", "custom"].includes(evaluationSet)) throw new Error("--evaluation-set must be development, held-out, or custom");
+  if (evaluationSet === "custom" && args.seed === undefined) throw new Error("--evaluation-set custom requires --seed");
+  const defaultSeed = evaluationSet === "custom" ? 42 : EVALUATION_SEEDS[evaluationSet][0];
   const common = {
     caseCount: integer(args.cases, "cases", 1000, 1),
     days: integer(args.days, "days", 30, 1),
-    seed: integer(args.seed, "seed", 42, Number.MIN_SAFE_INTEGER),
+    seed: integer(args.seed, "seed", defaultSeed, Number.MIN_SAFE_INTEGER),
+    scenario: (args.scenario ?? "standard") as keyof typeof SCENARIO_MANIFESTS,
+    evaluationSet,
     capacity: {
       dailyContactLimit: integer(args["contact-capacity"], "contact-capacity", 100, 0),
       dailyHumanReviewLimit: integer(args["review-capacity"], "review-capacity", 10, 0),
@@ -94,10 +125,13 @@ async function main() {
     await Promise.all([
       writeFile(`${directory}/comparison.json`, json(comparison)),
       writeFile(`${directory}/comparison.md`, comparisonMarkdown(comparison)),
+      writeFile(`${directory}/scenario-manifest.json`, json(comparison.scenarioManifest)),
+      writeFile(`${directory}/evaluation-set-manifest.json`, json(EVALUATION_SET_MANIFEST)),
+      writeFile(`${directory}/potential-outcome-bank.json`, json({ warning: "HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES", ...comparison.potentialOutcomeBank })),
     ]);
-    console.log(`Synthetic strategy comparison ${comparison.comparisonId}\nEvidence: synthetic scenario outputs; not causal or real-world recovery\nContact / review capacity per day: ${common.capacity.dailyContactLimit} / ${common.capacity.dailyHumanReviewLimit}`);
+    console.log(`Frozen paired synthetic strategy comparison ${comparison.comparisonId}\nEvidence: paired synthetic outputs; not causal or real-world recovery\nScenario / evaluation set: ${common.scenario} / ${common.evaluationSet}\nBank SHA-256: ${comparison.potentialOutcomeBankHash}\nReconciliation: ${comparison.reconciliation.valid}\nContact / review capacity per day: ${common.capacity.dailyContactLimit} / ${common.capacity.dailyHumanReviewLimit}`);
     for (const result of comparison.results) console.log(`${result.config.strategy}: ${inr(result.metrics.recovery.totalRecoveredPaise)} simulated recovery; ${result.metrics.capacity.contactConsumed} contacts; ${result.metrics.capacity.humanReviewConsumed} reviews`);
-    console.log(`Paired potential-outcome bank: pending Milestone 4\nArtifacts: ${directory}`);
+    console.log(`Paired potential-outcome bank: frozen and shared\nArtifacts: ${directory}`);
     return;
   }
 
