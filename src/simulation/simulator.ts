@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { keyedInt, keyedUnit, stableId } from "./random";
+import { createPotentialOutcomeBank, normalizeEnvironmentConfig, stableJson, validatePotentialOutcomeBank } from "./potential-outcomes";
+import { profileTraits, scenarioManifest } from "./scenarios";
 import type {
   AuditEvent,
   CapacityAllocation,
@@ -8,6 +10,7 @@ import type {
   ObservableRecoveryContext,
   PolicyConfig,
   PolicyResult,
+  PotentialOutcomeBank,
   Profile,
   RecoveryAction,
   RecoveryDecision,
@@ -33,6 +36,7 @@ export const DEFAULT_CONFIG: SimulationConfig = {
   startDate: "2026-01-01",
   strategy: "finance-age-bucket",
   scenario: "standard",
+  evaluationSet: "development",
   policy: DEFAULT_POLICY,
   capacity: { dailyContactLimit: 100, dailyHumanReviewLimit: 10 },
 };
@@ -41,25 +45,7 @@ export const STRATEGY_NAMES: StrategyName[] = ["razorpay-native-reminders", "fin
 const CONTACTS = new Set<RecoveryAction>(["SEND_GENTLE_REMINDER", "SEND_PAYMENT_REMINDER", "SEND_PAYMENT_LINK", "REQUEST_PAYMENT_COMMITMENT", "FOLLOW_UP_PROMISE"]);
 const TERMINAL = new Set<RecoveryState>(["DISPUTED", "ESCALATED", "RECOVERED", "CLOSED"]);
 const profiles: Profile[] = ["RELIABLE_LATE_PAYER", "CASHFLOW_CONSTRAINED", "LOW_RESPONSIVENESS", "DISPUTE_PRONE", "HIGH_RISK"];
-const traits: Record<Profile, Omit<HiddenCustomerState, "profile">> = {
-  RELIABLE_LATE_PAYER: { responsiveness: .82, paymentAbility: .82, willingness: .92, disputePropensity: .02, promiseReliability: .86, partialTendency: .12, spontaneousPayment: .025 },
-  CASHFLOW_CONSTRAINED: { responsiveness: .7, paymentAbility: .38, willingness: .85, disputePropensity: .04, promiseReliability: .48, partialTendency: .62, spontaneousPayment: .008 },
-  LOW_RESPONSIVENESS: { responsiveness: .2, paymentAbility: .68, willingness: .58, disputePropensity: .04, promiseReliability: .55, partialTendency: .22, spontaneousPayment: .004 },
-  DISPUTE_PRONE: { responsiveness: .68, paymentAbility: .72, willingness: .48, disputePropensity: .32, promiseReliability: .52, partialTendency: .18, spontaneousPayment: .003 },
-  HIGH_RISK: { responsiveness: .3, paymentAbility: .2, willingness: .3, disputePropensity: .14, promiseReliability: .2, partialTendency: .35, spontaneousPayment: .001 },
-};
-
 const clone = <T>(value: T): T => structuredClone(value);
-const stableJson = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
 const isoDay = (start: string, day: number) => new Date(`${start}T00:00:00.000Z`).valueOf() + day * 86_400_000;
 const dateOnly = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const byCaseId = (a: SimulationCase, b: SimulationCase) => a.id.localeCompare(b.id);
@@ -75,7 +61,7 @@ function validateConfig(config: SimulationConfig): void {
     if (!Number.isInteger(value) || value < 0) throw new Error(`${name} must be a non-negative integer`);
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(config.startDate) || Number.isNaN(isoDay(config.startDate, 0))) throw new Error("startDate must be a valid YYYY-MM-DD date");
-  if (config.scenario !== "standard") throw new Error("Only the standard scenario is currently supported");
+  if (!scenarioManifest(config.scenario)) throw new Error("Unknown scenario");
 }
 
 export function generatePortfolio(config: SimulationConfig): { cases: SimulationCase[]; hidden: Record<string, HiddenCustomerState> } {
@@ -85,7 +71,7 @@ export function generatePortfolio(config: SimulationConfig): { cases: Simulation
   for (let i = 0; i < config.caseCount; i++) {
     const id = `sim-case-${String(i + 1).padStart(6, "0")}`;
     const profile = profiles[keyedInt(config.seed, 0, profiles.length - 1, "profile", i)];
-    hidden[id] = { profile, ...traits[profile] };
+    hidden[id] = profileTraits(profile, config.scenario);
     const amountRoll = keyedUnit(config.seed, "amount-tier", i);
     const [lo, hi] = amountRoll < .45 ? [5_000, 50_000] : amountRoll < .8 ? [50_001, 300_000] : amountRoll < .97 ? [300_001, 2_000_000] : [2_000_001, 10_000_000];
     const amount = keyedInt(config.seed, lo, hi, "amount", i);
@@ -215,7 +201,7 @@ function transition(c: SimulationCase, next: RecoveryState): boolean {
   return true;
 }
 
-export function runSimulation(input: SimulationConfigInput = {}, suppliedStrategy?: RecoveryStrategy): SimulationResult {
+export function runSimulation(input: SimulationConfigInput = {}, suppliedStrategy?: RecoveryStrategy, suppliedBank?: PotentialOutcomeBank): SimulationResult {
   const selectedName = suppliedStrategy?.name ?? input.strategy ?? DEFAULT_CONFIG.strategy;
   const config: SimulationConfig = {
     ...DEFAULT_CONFIG,
@@ -229,6 +215,8 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   const runId = createHash("sha256").update(`${SIMULATOR_VERSION}|${stableJson(config)}`).digest("hex").slice(0, 16);
   const generated = generatePortfolio(config);
   const initialPortfolio = clone(generated.cases).sort(byCaseId);
+  const bank = suppliedBank ?? createPotentialOutcomeBank(config, initialPortfolio);
+  validatePotentialOutcomeBank(bank, config, initialPortfolio);
   const cases = clone(generated.cases).sort(byCaseId);
   const caseMap = new Map(cases.map((item) => [item.id, item]));
   const events: AuditEvent[] = [];
@@ -276,9 +264,11 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
     for (const c of cases) {
       if (TERMINAL.has(c.state)) continue;
       for (const promise of c.promises.filter((item) => item.status === "ACTIVE" && item.dueDay === day)) {
-        if (keyedUnit(config.seed, c.id, day, "promise-realization", promise.id) < generated.hidden[c.id].promiseReliability) {
-          const fraction = keyedUnit(config.seed, c.id, day, "promise-full", promise.id) < .75 ? 1 : .5;
-          applyPayment(c, { eventId: stableId("sim-event", config.seed, c.id, day, promise.id), paymentId: stableId("sim-payment", config.seed, c.id, day, promise.id), caseId: c.id, amountPaise: Math.floor(promise.amountPaise * fraction), simulationDay: day, source: "SIMULATION", reason: "Synthetic promise realization.", promiseId: promise.id });
+        const promisePotential = bank.outcomes[c.id].promiseByCreation[String(promise.createdDay)]?.[String(promise.contactAttemptsAtCreation ?? 1)];
+        if (!promisePotential) throw new Error(`Potential-outcome bank is incomplete for promise ${promise.id}`);
+        if (promisePotential.realizationUnit < generated.hidden[c.id].promiseReliability) {
+          const fraction = promisePotential.fullPaymentUnit < .75 ? 1 : .5;
+          applyPayment(c, { eventId: stableId("sim-event", config.seed, runId, c.id, day, promise.id), paymentId: stableId("sim-payment", config.seed, runId, c.id, day, promise.id), caseId: c.id, amountPaise: Math.floor(promise.amountPaise * fraction), simulationDay: day, source: "SIMULATION", reason: "Synthetic promise realization.", promiseId: promise.id });
         }
       }
       for (const promise of c.promises.filter((item) => item.status === "ACTIVE" && item.dueDay < day)) {
@@ -287,8 +277,8 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
         if (c.state === "PROMISED") transition(c, "CONTACTED");
       }
       if (TERMINAL.has(c.state)) continue;
-      if (keyedUnit(config.seed, c.id, day, "spontaneous") < generated.hidden[c.id].spontaneousPayment) {
-        applyPayment(c, { eventId: stableId("sim-event", config.seed, c.id, day, "spontaneous"), paymentId: stableId("sim-payment", config.seed, c.id, day, "spontaneous"), caseId: c.id, amountPaise: c.outstandingPaise, simulationDay: day, source: "SIMULATION", reason: "Synthetic spontaneous payment." });
+      if (bank.outcomes[c.id].spontaneousByDay[String(day)] < generated.hidden[c.id].spontaneousPayment) {
+        applyPayment(c, { eventId: stableId("sim-event", config.seed, runId, c.id, day, "spontaneous"), paymentId: stableId("sim-payment", config.seed, runId, c.id, day, "spontaneous"), caseId: c.id, amountPaise: c.outstandingPaise, simulationDay: day, source: "SIMULATION", reason: "Synthetic spontaneous payment." });
       }
     }
 
@@ -349,25 +339,27 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
       transition(c, "CONTACTED");
       audit(c, day, "CUSTOMER_CONTACTED", "SIMULATION", "Synthetic contact executed; no external channel or Razorpay reminder was invoked.", { action: item.action });
       const hidden = generated.hidden[c.id];
-      const response = keyedUnit(config.seed, c.id, day, item.action, c.contactAttempts, "response");
+      const potential = bank.outcomes[c.id].actionsByDay[String(day)]?.[item.action]?.[String(c.contactAttempts)];
+      if (!potential) throw new Error(`Potential-outcome bank is incomplete for ${c.id}/${day}/${item.action}/${c.contactAttempts}`);
+      const response = potential.responseUnit;
       if (response > hidden.responsiveness) {
         audit(c, day, "CUSTOMER_NO_RESPONSE", "SIMULATION", "Synthetic customer did not respond.", { action: item.action });
         continue;
       }
       audit(c, day, "CUSTOMER_RESPONSE_RECEIVED", "SIMULATION", "Synthetic customer responded.", { action: item.action });
-      const outcome = keyedUnit(config.seed, c.id, day, item.action, c.contactAttempts, "outcome");
+      const outcome = potential.outcomeUnit;
       if (outcome < hidden.disputePropensity) {
         transition(c, "DISPUTED");
         audit(c, day, "DISPUTE_DETECTED", "SIMULATION", "Synthetic customer disputed the invoice.");
         continue;
       }
-      const payChance = hidden.paymentAbility * hidden.willingness * (item.action === "SEND_PAYMENT_LINK" ? 1.15 : 1);
+      const payChance = hidden.paymentAbility * hidden.willingness * scenarioManifest(config.scenario).assumptions.actionModifiers[item.action];
       if (outcome < payChance * .38) {
-        const partial = keyedUnit(config.seed, c.id, day, "partial") < hidden.partialTendency;
-        applyPayment(c, { eventId: stableId("sim-event", config.seed, c.id, day, "immediate", c.contactAttempts), paymentId: stableId("sim-payment", config.seed, c.id, day, "immediate", c.contactAttempts), caseId: c.id, amountPaise: partial ? Math.max(1, Math.floor(c.outstandingPaise * .35)) : c.outstandingPaise, simulationDay: day, source: "SIMULATION", reason: "Synthetic immediate response payment." });
+        const partial = potential.partialPaymentUnit < hidden.partialTendency;
+        applyPayment(c, { eventId: stableId("sim-event", config.seed, runId, c.id, day, "immediate", c.contactAttempts), paymentId: stableId("sim-payment", config.seed, runId, c.id, day, "immediate", c.contactAttempts), caseId: c.id, amountPaise: partial ? Math.max(1, Math.floor(c.outstandingPaise * .35)) : c.outstandingPaise, simulationDay: day, source: "SIMULATION", reason: "Synthetic immediate response payment." });
       } else if (item.action === "REQUEST_PAYMENT_COMMITMENT" || item.action === "FOLLOW_UP_PROMISE" || outcome < payChance * .7) {
-        const amount = keyedUnit(config.seed, c.id, day, "promise-amount") < hidden.partialTendency ? Math.max(1, Math.floor(c.outstandingPaise * .5)) : c.outstandingPaise;
-        const promise = { id: stableId("sim-promise", config.seed, c.id, day, c.promises.length), createdDay: day, amountPaise: amount, dueDay: day + keyedInt(config.seed, 2, 7, c.id, day, "promise-due"), status: "ACTIVE" as const, amountFulfilledPaise: 0, paymentIds: [] };
+        const amount = potential.promiseAmountUnit < hidden.partialTendency ? Math.max(1, Math.floor(c.outstandingPaise * .5)) : c.outstandingPaise;
+        const promise = { id: stableId("sim-promise", config.seed, runId, c.id, day, c.contactAttempts), createdDay: day, contactAttemptsAtCreation: c.contactAttempts, amountPaise: amount, dueDay: day + 2 + Math.floor(potential.promiseDueUnit * 6), status: "ACTIVE" as const, amountFulfilledPaise: 0, paymentIds: [] };
         c.promises.push(promise);
         transition(c, "PROMISED");
         audit(c, day, "PROMISE_CREATED", "SIMULATION", "Synthetic customer made a dated promise.", { amountPaise: amount, metadata: { promiseId: promise.id, dueDay: promise.dueDay } });
@@ -385,22 +377,34 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   for (const c of cases) {
     if (c.outstandingPaise < 0 || c.recoveredPaise + c.outstandingPaise !== c.originalAmountPaise) throw new Error(`Monetary invariant failed for ${c.id}`);
   }
-  return { runId, config, initialPortfolio, hiddenState: generated.hidden, finalCases: cases, auditEvents: events, payments, dailyCapacity, metrics: calculateMetrics(initialPortfolio, cases, events, dailyCapacity) };
+  return { runId, config, initialPortfolio, hiddenState: generated.hidden, potentialOutcomeBankHash: bank.sha256, finalCases: cases, auditEvents: events, payments, dailyCapacity, metrics: calculateMetrics(initialPortfolio, cases, events, dailyCapacity) };
 }
 
 export function compareStrategies(input: SimulationConfigInput = {}, names: StrategyName[] = STRATEGY_NAMES): StrategyComparison {
   const uniqueNames = [...new Set(names)];
   if (!uniqueNames.length) throw new Error("At least one strategy is required for comparison");
-  const results = uniqueNames.map((strategy) => runSimulation({ ...input, strategy }));
+  const firstConfig: SimulationConfig = { ...DEFAULT_CONFIG, ...input, strategy: uniqueNames[0], policy: { ...DEFAULT_POLICY, ...input.policy }, capacity: { ...DEFAULT_CONFIG.capacity, ...input.capacity } };
+  validateConfig(firstConfig);
+  const generated = generatePortfolio(firstConfig); const bank = createPotentialOutcomeBank(firstConfig, generated.cases);
+  const results = uniqueNames.map((strategy) => runSimulation({ ...input, strategy }, undefined, bank));
   const first = results[0].config;
-  const commonConfig = { seed: first.seed, caseCount: first.caseCount, days: first.days, startDate: first.startDate, scenario: first.scenario, policy: first.policy, capacity: first.capacity };
-  const comparisonId = createHash("sha256").update(`${SIMULATOR_VERSION}|comparison|${stableJson(commonConfig)}|${uniqueNames.join("|")}`).digest("hex").slice(0, 16);
+  const commonConfig = normalizeEnvironmentConfig(first);
+  const comparisonId = createHash("sha256").update(`${SIMULATOR_VERSION}|comparison|${stableJson(commonConfig)}|${bank.sha256}|${[...uniqueNames].sort().join("|")}`).digest("hex").slice(0, 16);
+  const initialPortfoliosIdentical = results.every((result) => stableJson(result.initialPortfolio) === stableJson(results[0].initialPortfolio));
+  const hiddenStatesIdentical = results.every((result) => stableJson(result.hiddenState) === stableJson(results[0].hiddenState));
+  const bankHashesIdentical = results.every((result) => result.potentialOutcomeBankHash === bank.sha256);
+  const commonInputsIdentical = results.every((result) => stableJson(normalizeEnvironmentConfig(result.config)) === stableJson(commonConfig));
+  const caseMoneyReconciled = results.every((result) => result.metrics.reconciliation.valid && result.finalCases.every((c) => c.outstandingPaise + c.recoveredPaise === c.originalAmountPaise));
   return {
     comparisonId,
     evidenceLabel: "SYNTHETIC_STRATEGY_COMPARISON",
-    pairedOutcomeStatus: "NOT_IMPLEMENTED_MILESTONE_4_PENDING",
-    limitation: "Strategies share the same generated starting portfolio and keyed hidden assumptions, but action-specific potential outcomes are not frozen into a paired bank until Milestone 4. Differences are synthetic scenario outputs, not causal or real-world recovery estimates.",
+    pairedOutcomeStatus: "FROZEN_PAIRED_SYNTHETIC",
+    limitation: "A frozen paired synthetic environment reduces incidental random differences: result differences are attributable only to selected strategy actions interacting with the shared synthetic environment. It is not a real-world causal claim, calibrated probability, or merchant-uplift estimate.",
     commonConfig,
+    scenarioManifest: scenarioManifest(first.scenario),
+    potentialOutcomeBank: bank,
+    potentialOutcomeBankHash: bank.sha256,
+    reconciliation: { valid: initialPortfoliosIdentical && hiddenStatesIdentical && bankHashesIdentical && commonInputsIdentical && caseMoneyReconciled, initialPortfoliosIdentical, hiddenStatesIdentical, bankHashesIdentical, commonInputsIdentical, caseMoneyReconciled },
     results,
   };
 }
