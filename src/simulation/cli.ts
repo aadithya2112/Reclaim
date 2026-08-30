@@ -1,17 +1,115 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { formatTimeline, runSimulation } from "./simulator";
+import { compareStrategies, formatTimeline, runSimulation, STRATEGY_NAMES } from "./simulator";
+import { SIMULATOR_VERSION } from "./types";
+import type { SimulationResult, StrategyComparison, StrategyName } from "./types";
 
-function options(argv:string[]) { const out:Record<string,string|boolean>={}; for(let i=0;i<argv.length;i++){const arg=argv[i];if(!arg.startsWith("--"))throw new Error(`Unexpected argument: ${arg}`);const key=arg.slice(2);if(key==="verbose"){out[key]=true;continue;}const value=argv[++i];if(!value||value.startsWith("--"))throw new Error(`Missing value for --${key}`);out[key]=value;}return out; }
-function positive(value:string|boolean|undefined,name:string,defaultValue:number){const n=value===undefined?defaultValue:Number(value);if(!Number.isInteger(n)||(name!=="seed"&&n<1))throw new Error(`--${name} must be ${name==="seed"?"an integer":"a positive integer"}`);return n;}
-const inr=(paise:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(paise/100);
-
-async function main(){
-  const args=options(process.argv.slice(2)); const allowed=new Set(["cases","days","seed","strategy","scenario","output","verbose","case"]);for(const k of Object.keys(args))if(!allowed.has(k))throw new Error(`Unknown option --${k}`);
-  if(args.strategy!==undefined&&args.strategy!=="baseline")throw new Error("Only --strategy baseline is currently supported");if(args.scenario!==undefined&&args.scenario!=="standard")throw new Error("Only --scenario standard is currently supported");
-  const result=runSimulation({caseCount:positive(args.cases,"cases",1000),days:positive(args.days,"days",30),seed:positive(args.seed,"seed",42)}); const root=resolve(String(args.output??"simulation-results"));const dir=resolve(root,`run-${result.runId}`);if(!dir.startsWith(root+"/")&&dir!==root)throw new Error("Invalid output path");await rm(dir,{recursive:true,force:true});await mkdir(dir,{recursive:true});
-  const json=(value:unknown)=>JSON.stringify(value,null,2)+"\n"; await Promise.all([writeFile(`${dir}/config.json`,json({simulatorVersion:"1.0.0",logicalRunId:result.runId,...result.config,provenance:"SYNTHETIC_SIMULATION"})),writeFile(`${dir}/portfolio.json`,json(result.initialPortfolio)),writeFile(`${dir}/simulation-state.json`,json({warning:"HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES",customers:result.hiddenState})),writeFile(`${dir}/cases-final.json`,json(result.finalCases)),writeFile(`${dir}/audit-events.jsonl`,result.auditEvents.map(e=>JSON.stringify(e)).join("\n")+"\n"),writeFile(`${dir}/metrics.json`,json(result.metrics)),writeFile(`${dir}/summary.md`,summary(result))]);
-  console.log(`Synthetic simulation ${result.runId}\nCases generated: ${result.config.caseCount}\nVirtual days: ${result.config.days}\nStarting amount: ${inr(result.metrics.portfolio.totalStartingOutstandingPaise)}\nRecovered amount: ${inr(result.metrics.recovery.totalRecoveredPaise)}\nRecovery rate: ${(result.metrics.recovery.recoveryRate*100).toFixed(2)}%\nFull / partial recoveries: ${result.metrics.recovery.fullyRecoveredCases} / ${result.metrics.recovery.partiallyRecoveredCases}\nPromises fulfilled: ${result.metrics.promises.fulfilled}\nEscalations: ${result.metrics.recovery.escalatedCases}\nPolicy blocks: ${result.metrics.safety.policyBlocks}\nArtifacts: ${dir}`);if(args.case)console.log("\n"+formatTimeline(result,String(args.case)));if(args.verbose)console.log("\n"+formatTimeline(result,result.finalCases[0].id));
+function options(argv: string[]) {
+  const out: Record<string, string | boolean> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) throw new Error(`Unexpected argument: ${arg}`);
+    const key = arg.slice(2);
+    if (key === "verbose" || key === "compare") { out[key] = true; continue; }
+    const value = argv[++i];
+    if (!value || value.startsWith("--")) throw new Error(`Missing value for --${key}`);
+    out[key] = value;
+  }
+  return out;
 }
-function summary(r:ReturnType<typeof runSimulation>){return `# Synthetic recovery benchmark\n\n**Simulation outcomes are synthetic and are not claims about actual Razorpay merchant recovery performance.**\n\n- Logical run: \`${r.runId}\`\n- Seed: ${r.config.seed}\n- Cases / virtual days: ${r.config.caseCount} / ${r.config.days}\n- Starting outstanding: ${inr(r.metrics.portfolio.totalStartingOutstandingPaise)}\n- Simulated recovery: ${inr(r.metrics.recovery.totalRecoveredPaise)} (${(r.metrics.recovery.recoveryRate*100).toFixed(2)}%)\n- Fully / partially recovered: ${r.metrics.recovery.fullyRecoveredCases} / ${r.metrics.recovery.partiallyRecoveredCases}\n- Disputed / escalated: ${r.metrics.recovery.disputedCases} / ${r.metrics.recovery.escalatedCases}\n- Reconciliation valid: ${r.metrics.reconciliation.valid}\n\nReceivables, behavior, promises, disputes, and payments in this report are synthetic. Razorpay Test Mode is not called by this harness.\n`;}
-main().catch(e=>{console.error(e instanceof Error?e.message:e);process.exitCode=1;});
+
+function integer(value: string | boolean | undefined, name: string, defaultValue: number, minimum: number) {
+  const parsed = value === undefined ? defaultValue : Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum) throw new Error(`--${name} must be an integer >= ${minimum}`);
+  return parsed;
+}
+
+function strategyName(value: string | boolean | undefined): StrategyName {
+  if (value === undefined || value === "baseline") return "finance-age-bucket";
+  if (typeof value === "string" && STRATEGY_NAMES.includes(value as StrategyName)) return value as StrategyName;
+  throw new Error(`--strategy must be one of: ${STRATEGY_NAMES.join(", ")} (legacy alias: baseline)`);
+}
+
+const inr = (paise: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(paise / 100);
+const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+
+async function recreateDirectory(root: string, name: string): Promise<string> {
+  const directory = resolve(root, name);
+  if (!directory.startsWith(`${root}/`)) throw new Error("Invalid output path");
+  await rm(directory, { recursive: true, force: true });
+  await mkdir(directory, { recursive: true });
+  return directory;
+}
+
+async function writeRun(result: SimulationResult, directory: string): Promise<void> {
+  await Promise.all([
+    writeFile(`${directory}/config.json`, json({ simulatorVersion: SIMULATOR_VERSION, logicalRunId: result.runId, ...result.config, provenance: "SYNTHETIC_SIMULATION" })),
+    writeFile(`${directory}/portfolio.json`, json(result.initialPortfolio)),
+    writeFile(`${directory}/simulation-state.json`, json({ warning: "HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES", customers: result.hiddenState })),
+    writeFile(`${directory}/cases-final.json`, json(result.finalCases)),
+    writeFile(`${directory}/audit-events.jsonl`, `${result.auditEvents.map((event) => JSON.stringify(event)).join("\n")}\n`),
+    writeFile(`${directory}/synthetic-payments.jsonl`, `${result.payments.map((payment) => JSON.stringify(payment)).join("\n")}${result.payments.length ? "\n" : ""}`),
+    writeFile(`${directory}/daily-capacity.json`, json(result.dailyCapacity)),
+    writeFile(`${directory}/metrics.json`, json(result.metrics)),
+    writeFile(`${directory}/summary.md`, summary(result)),
+  ]);
+}
+
+function summary(result: SimulationResult) {
+  return `# Synthetic recovery benchmark\n\n**Simulation outcomes are synthetic and are not claims about actual Razorpay merchant recovery performance.**\n\n- Logical run: \`${result.runId}\`\n- Strategy: \`${result.config.strategy}\`\n- Seed: ${result.config.seed}\n- Cases / virtual days: ${result.config.caseCount} / ${result.config.days}\n- Daily contact / human-review budgets: ${result.config.capacity.dailyContactLimit} / ${result.config.capacity.dailyHumanReviewLimit}\n- Contact consumed / deferred eligible: ${result.metrics.capacity.contactConsumed} / ${result.metrics.capacity.contactDeferredEligible}\n- Human review consumed / deferred eligible: ${result.metrics.capacity.humanReviewConsumed} / ${result.metrics.capacity.humanReviewDeferredEligible}\n- Protected contacts avoided: ${result.metrics.safety.protectedContactsAvoided}\n- Starting outstanding: ${inr(result.metrics.portfolio.totalStartingOutstandingPaise)}\n- Simulated recovery: ${inr(result.metrics.recovery.totalRecoveredPaise)} (${(result.metrics.recovery.recoveryRate * 100).toFixed(2)}%)\n- Fully / partially recovered: ${result.metrics.recovery.fullyRecoveredCases} / ${result.metrics.recovery.partiallyRecoveredCases}\n- Disputed / escalated: ${result.metrics.recovery.disputedCases} / ${result.metrics.recovery.escalatedCases}\n- Reconciliation valid: ${result.metrics.reconciliation.valid}\n\nReceivables, behavior, reminders, delivery, responses, and payments in this report are synthetic. Razorpay and external communication channels are not called by this harness. The native reminder baseline is a disclosed model of documented Payment Link reminder capability, not evidence of delivery or recovery.\n`;
+}
+
+function comparisonMarkdown(comparison: StrategyComparison): string {
+  const rows = comparison.results.map((result) => `| ${result.config.strategy} | ${inr(result.metrics.recovery.totalRecoveredPaise)} | ${(result.metrics.recovery.recoveryRate * 100).toFixed(2)}% | ${result.metrics.capacity.contactConsumed} | ${result.metrics.capacity.humanReviewConsumed} | ${result.metrics.capacity.contactDeferredEligible + result.metrics.capacity.humanReviewDeferredEligible} |`).join("\n");
+  return `# Synthetic strategy comparison\n\n**This is not a causal estimate or a claim about real merchant recovery.**\n\nAll strategies start from the same deterministic synthetic portfolio and use the same daily contact (${comparison.commonConfig.capacity.dailyContactLimit}) and human-review (${comparison.commonConfig.capacity.dailyHumanReviewLimit}) budgets. The harness invokes neither Razorpay nor a communication channel.\n\n| Strategy | Simulated recovery | Recovery rate | Contacts | Human reviews | Deferred eligible |\n| --- | ---: | ---: | ---: | ---: | ---: |\n${rows}\n\n## Evaluation boundary\n\n${comparison.limitation}\n\nThe Razorpay-native row models a disclosed fixed three-reminder Payment Link schedule on simulation days 0, 3, and 7. Razorpay documents configurable Payment Link reminders, but this schedule, delivery, response, and recovery are simulation assumptions.\n`;
+}
+
+async function main() {
+  const args = options(process.argv.slice(2));
+  const allowed = new Set(["cases", "days", "seed", "strategy", "scenario", "output", "verbose", "case", "compare", "contact-capacity", "review-capacity"]);
+  for (const key of Object.keys(args)) if (!allowed.has(key)) throw new Error(`Unknown option --${key}`);
+  if (args.scenario !== undefined && args.scenario !== "standard") throw new Error("Only --scenario standard is currently supported");
+  const common = {
+    caseCount: integer(args.cases, "cases", 1000, 1),
+    days: integer(args.days, "days", 30, 1),
+    seed: integer(args.seed, "seed", 42, Number.MIN_SAFE_INTEGER),
+    capacity: {
+      dailyContactLimit: integer(args["contact-capacity"], "contact-capacity", 100, 0),
+      dailyHumanReviewLimit: integer(args["review-capacity"], "review-capacity", 10, 0),
+    },
+  };
+  const root = resolve(String(args.output ?? "simulation-results"));
+  await mkdir(root, { recursive: true });
+
+  if (args.compare) {
+    if (args.strategy !== undefined) throw new Error("--strategy cannot be combined with --compare; comparison runs all available strategies");
+    if (args.case !== undefined || args.verbose) throw new Error("--case and --verbose are available only for a single-strategy run");
+    const comparison = compareStrategies(common);
+    const directory = await recreateDirectory(root, `comparison-${comparison.comparisonId}`);
+    for (const result of comparison.results) {
+      const strategyDirectory = `${directory}/${result.config.strategy}`;
+      await mkdir(strategyDirectory, { recursive: true });
+      await writeRun(result, strategyDirectory);
+    }
+    await Promise.all([
+      writeFile(`${directory}/comparison.json`, json(comparison)),
+      writeFile(`${directory}/comparison.md`, comparisonMarkdown(comparison)),
+    ]);
+    console.log(`Synthetic strategy comparison ${comparison.comparisonId}\nEvidence: synthetic scenario outputs; not causal or real-world recovery\nContact / review capacity per day: ${common.capacity.dailyContactLimit} / ${common.capacity.dailyHumanReviewLimit}`);
+    for (const result of comparison.results) console.log(`${result.config.strategy}: ${inr(result.metrics.recovery.totalRecoveredPaise)} simulated recovery; ${result.metrics.capacity.contactConsumed} contacts; ${result.metrics.capacity.humanReviewConsumed} reviews`);
+    console.log(`Paired potential-outcome bank: pending Milestone 4\nArtifacts: ${directory}`);
+    return;
+  }
+
+  const result = runSimulation({ ...common, strategy: strategyName(args.strategy) });
+  const directory = await recreateDirectory(root, `run-${result.runId}`);
+  await writeRun(result, directory);
+  console.log(`Synthetic simulation ${result.runId}\nStrategy: ${result.config.strategy}\nCases generated: ${result.config.caseCount}\nVirtual days: ${result.config.days}\nDaily contact / review capacity: ${result.config.capacity.dailyContactLimit} / ${result.config.capacity.dailyHumanReviewLimit}\nContact consumed / deferred: ${result.metrics.capacity.contactConsumed} / ${result.metrics.capacity.contactDeferredEligible}\nReview consumed / deferred: ${result.metrics.capacity.humanReviewConsumed} / ${result.metrics.capacity.humanReviewDeferredEligible}\nStarting amount: ${inr(result.metrics.portfolio.totalStartingOutstandingPaise)}\nRecovered amount: ${inr(result.metrics.recovery.totalRecoveredPaise)}\nRecovery rate: ${(result.metrics.recovery.recoveryRate * 100).toFixed(2)}%\nFull / partial recoveries: ${result.metrics.recovery.fullyRecoveredCases} / ${result.metrics.recovery.partiallyRecoveredCases}\nProtected contacts avoided: ${result.metrics.safety.protectedContactsAvoided}\nReconciliation valid: ${result.metrics.reconciliation.valid}\nArtifacts: ${directory}`);
+  if (args.case) console.log(`\n${formatTimeline(result, String(args.case))}`);
+  if (args.verbose) console.log(`\n${formatTimeline(result, result.finalCases[0].id)}`);
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
