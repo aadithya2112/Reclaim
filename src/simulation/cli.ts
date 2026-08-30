@@ -1,9 +1,11 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { compareStrategies, formatTimeline, runSimulation, STRATEGY_NAMES } from "./simulator";
 import { SIMULATOR_VERSION } from "./types";
 import { EVALUATION_SET_MANIFEST, SCENARIO_MANIFESTS } from "./scenarios";
+import { runEvaluationSuite } from "./evaluation";
 import type { EvaluationSetName, SimulationResult, StrategyComparison, StrategyName } from "./types";
+import type { DecisionManifest } from "./recoup-agent";
 
 const EVALUATION_SEEDS = EVALUATION_SET_MANIFEST.sets;
 
@@ -91,12 +93,13 @@ function comparisonMarkdown(comparison: StrategyComparison): string {
 
 async function main() {
   const args = options(process.argv.slice(2));
-  const allowed = new Set(["cases", "days", "seed", "strategy", "scenario", "evaluation-set", "output", "verbose", "case", "compare", "contact-capacity", "review-capacity"]);
+  const allowed = new Set(["cases", "days", "seed", "strategy", "scenario", "evaluation-set", "output", "verbose", "case", "compare", "contact-capacity", "review-capacity", "recoup-manifest"]);
   for (const key of Object.keys(args)) if (!allowed.has(key)) throw new Error(`Unknown option --${key}`);
   if (args.scenario !== undefined && (typeof args.scenario !== "string" || !(args.scenario in SCENARIO_MANIFESTS))) throw new Error(`--scenario must be one of: ${Object.keys(SCENARIO_MANIFESTS).join(", ")}`);
   const evaluationSet = (args["evaluation-set"] ?? "development") as EvaluationSetName;
   if (!["development", "held-out", "custom"].includes(evaluationSet)) throw new Error("--evaluation-set must be development, held-out, or custom");
   if (evaluationSet === "custom" && args.seed === undefined) throw new Error("--evaluation-set custom requires --seed");
+  if (evaluationSet !== "custom" && args.seed !== undefined) throw new Error("--seed is only valid with --evaluation-set custom; named sets always run every declared seed.");
   const defaultSeed = evaluationSet === "custom" ? 42 : EVALUATION_SEEDS[evaluationSet][0];
   const common = {
     caseCount: integer(args.cases, "cases", 1000, 1),
@@ -115,7 +118,24 @@ async function main() {
   if (args.compare) {
     if (args.strategy !== undefined) throw new Error("--strategy cannot be combined with --compare; comparison runs all available strategies");
     if (args.case !== undefined || args.verbose) throw new Error("--case and --verbose are available only for a single-strategy run");
-    const comparison = compareStrategies(common);
+    if (evaluationSet !== "custom" && args["recoup-manifest"] !== undefined) throw new Error("Suite Recoup evaluation requires a pre-frozen manifest covering every dynamic context; use the preparation orchestrator before candidate freeze.");
+    if (evaluationSet !== "custom") {
+      const aggregate = runEvaluationSuite({ ...common, evaluationSet });
+      const directory = await recreateDirectory(root, `evaluation-${aggregate.sha256.slice(0, 16)}`);
+      await Promise.all([
+        writeFile(`${directory}/suite-manifest.json`, json(EVALUATION_SET_MANIFEST)),
+        writeFile(`${directory}/aggregate.json`, json(aggregate)),
+        writeFile(`${directory}/aggregate.md`, `# Synthetic ${evaluationSet} evaluation aggregate\n\n**All outcomes are synthetic; no confidence intervals or significance claims are made for three seeds.**\n\nReconciliation: ${aggregate.reconciliation.valid ? "valid" : "INVALID"}\n\n${Object.entries(aggregate.perStrategy).map(([name, value]) => `- ${name}: recovery paise by seed ${value.recoveryPaiseBySeed.join(", ")}; range ${value.rangePaise.join("–")}; incremental vs native ${value.incrementalVsNativePaiseBySeed.join(", ")}; win/tie/loss ${value.wins}/${value.ties}/${value.losses}`).join("\n")}\n`),
+      ]);
+      for (const comparison of aggregate.comparisons) {
+        const comparisonDirectory = `${directory}/comparison-${comparison.comparisonId}`; await mkdir(comparisonDirectory, { recursive: true });
+        await Promise.all([writeFile(`${comparisonDirectory}/comparison.json`, json(comparison)), writeFile(`${comparisonDirectory}/comparison.md`, comparisonMarkdown(comparison)), writeFile(`${comparisonDirectory}/bank-hash.txt`, `${comparison.potentialOutcomeBankHash}\n`)]);
+      }
+      console.log(`Synthetic ${evaluationSet} suite: ${aggregate.seeds.length} declared seeds; reconciliation ${aggregate.reconciliation.valid}; artifacts: ${directory}`);
+      return;
+    }
+    const recoupManifest = args["recoup-manifest"] === undefined ? undefined : JSON.parse(await readFile(String(args["recoup-manifest"]), "utf8")) as DecisionManifest;
+    const comparison = compareStrategies(common, recoupManifest ? [...STRATEGY_NAMES, "recoup-agent"] : STRATEGY_NAMES, recoupManifest);
     const directory = await recreateDirectory(root, `comparison-${comparison.comparisonId}`);
     for (const result of comparison.results) {
       const strategyDirectory = `${directory}/${result.config.strategy}`;

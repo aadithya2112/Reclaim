@@ -27,6 +27,8 @@ bun run simulate --strategy razorpay-native-reminders --contact-capacity 25 --re
 bun run simulate --compare --cases 1000 --days 30 --scenario standard --evaluation-set development --contact-capacity 25 --review-capacity 5
 # Intentional final held-out evaluation (do not tune strategy behavior to these results):
 bun run simulate --compare --cases 1000 --days 30 --scenario adversarial --evaluation-set held-out --contact-capacity 25 --review-capacity 5
+# A deliberate single seed is explicitly custom, never labelled development/held-out:
+bun run simulate --compare --cases 1000 --days 30 --scenario standard --evaluation-set custom --seed 42
 ```
 
 **Simulation outcomes are synthetic and are not claims about actual Razorpay merchant recovery performance.** All receivables, customer behavior, responses, promises, disputes, and payments produced by this harness are synthetic. The harness makes no network or database calls. Razorpay Test Mode continues to prove only the separate Milestone 1 integration behavior.
@@ -66,6 +68,14 @@ Single runs atomically replace `simulation-results/run-<logical-id>/` and write 
 Recovery rate is simulated recovered paise divided by starting outstanding paise. Fully recovered means ending outstanding is zero; partially recovered means the run recovered positive money while a positive balance remains; unresolved excludes fully recovered, disputed, escalated, and closed cases. Promise fulfillment rate uses all created promises as its denominator. Capacity metrics report total budget, consumption, deferred eligible decisions, protected decisions/contacts, and utilization separately for contacts and reviews. Zero denominators return zero. INR formatting is presentation-only.
 
 Comparisons use one materialized, versioned potential-outcome bank per comparison. It pre-generates state-independent unit draws for spontaneous payment, every case/day/contact action/feasible attempt, response, disputes, immediate full/partial payment, promise amount/due date, and promise realization. A strategy consumes only the draw for its executed action and never receives hidden profiles or the bank. This makes the result paired, reproducible, and inspectable; it does not establish real-world causality, calibrated probabilities, or merchant uplift. Development seeds are `[42, 91, 123]`; held-out seeds are `[2027, 3407, 9811]`. The repository cannot cryptographically hide held-out files from its developers—process discipline, not secrecy, prevents tuning to final results. Razorpay Test Mode remains separate evidence for integration behavior only.
+
+### Milestone 4.1 and Recoup replay
+
+Named development/held-out comparisons run every declared seed and write a suite manifest, aggregate JSON/Markdown, constituent comparison IDs and bank hashes. The aggregate fails closed if any constituent reconciliation fails, and reports per-seed recovery/incremental recovery versus native reminders, ranges, recovery per contact, capacity, promise/protection/policy/safety measures, and win/tie/loss counts. Three seeds do not support confidence-interval or significance claims.
+
+`contactCostMultiplier` is now an auditable synthetic relationship-burden metric (never subtracted from recovered money). The relationship-sensitive scenario applies an additional disclosed multiplier to observable long-history accounts.
+
+`recoup-agent` is replay-only in the pure simulator. A separate server-side preparation workflow calls OpenAI Responses with strict JSON Schema and shared Zod validation, then freezes context hashes, prompt/schema versions, provider/model IDs, validated decisions, and a manifest hash. Replay makes no model calls; a missing or mismatched record is an explicit cache miss. The model receives only observable text/context as untrusted data, has no tools, and never sees profiles, outcome banks, future results, or payment truth. Deterministic policy and capacity allocation own final actions.
 
 ## Local setup
 

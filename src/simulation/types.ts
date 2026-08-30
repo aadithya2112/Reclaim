@@ -4,7 +4,7 @@ export type RecoveryState = "OPEN" | "CONTACTED" | "PROMISED" | "PARTIALLY_PAID"
 export type RecoveryAction = "WAIT" | "SEND_GENTLE_REMINDER" | "SEND_PAYMENT_REMINDER" | "SEND_PAYMENT_LINK" | "REQUEST_PAYMENT_COMMITMENT" | "FOLLOW_UP_PROMISE" | "ESCALATE_TO_HUMAN" | "CLOSE_CASE";
 export type Profile = "RELIABLE_LATE_PAYER" | "CASHFLOW_CONSTRAINED" | "LOW_RESPONSIVENESS" | "DISPUTE_PRONE" | "HIGH_RISK";
 export type PromiseStatus = "ACTIVE" | "FULFILLED" | "PARTIALLY_FULFILLED" | "BROKEN" | "CANCELLED";
-export type StrategyName = "finance-age-bucket" | "razorpay-native-reminders" | "no-intervention";
+export type StrategyName = "finance-age-bucket" | "razorpay-native-reminders" | "no-intervention" | "recoup-agent";
 export type CapacityKind = "CONTACT" | "HUMAN_REVIEW";
 export type ScenarioName = "conservative" | "standard" | "adversarial" | "relationship-sensitive";
 export type EvaluationSetName = "development" | "held-out" | "custom";
@@ -14,7 +14,7 @@ export interface ObservableHistory { historicalInvoices: number; historicalLateP
 export interface SimulationCase {
   id: string; customerId: string; invoiceId: string; originalAmountPaise: number; startingOutstandingPaise: number; outstandingPaise: number; recoveredPaise: number;
   invoiceIssueDate: string; dueDate: string; initialDaysOverdue: number; state: RecoveryState; contactAttempts: number; lastContactDay: number | null;
-  history: ObservableHistory; promises: PromiseToPay[]; dispute: boolean; escalated: boolean; closed: boolean; initialRecoveredPaise: number; recoveredDay: number | null;
+  history: ObservableHistory; customerText: string; collectionNote: string; promises: PromiseToPay[]; dispute: boolean; escalated: boolean; closed: boolean; initialRecoveredPaise: number; recoveredDay: number | null;
 }
 export interface HiddenCustomerState { profile: Profile; responsiveness: number; paymentAbility: number; willingness: number; disputePropensity: number; promiseReliability: number; partialTendency: number; spontaneousPayment: number }
 export interface ObservableRecoveryContext extends Omit<SimulationCase, "initialDaysOverdue"> { simulationDay: number; daysOverdue: number }
@@ -27,7 +27,7 @@ export interface CapacityConfig { dailyContactLimit: number; dailyHumanReviewLim
 export interface SimulationConfig { seed: number; caseCount: number; days: number; startDate: string; strategy: StrategyName; scenario: ScenarioName; evaluationSet: EvaluationSetName; policy: PolicyConfig; capacity: CapacityConfig }
 export interface SimulationConfigInput extends Omit<Partial<SimulationConfig>, "policy" | "capacity"> { policy?: Partial<PolicyConfig>; capacity?: Partial<CapacityConfig> }
 export interface PolicyConfig { maxContactAttempts: number; cooldownDays: number; highValueThresholdPaise: number }
-export interface WorkCandidate { caseId: string; action: RecoveryAction; capacityKind: CapacityKind; outstandingPaise: number; daysOverdue: number; hasBrokenPromise: boolean; contactAttempts: number }
+export interface WorkCandidate { caseId: string; action: RecoveryAction; capacityKind: CapacityKind; outstandingPaise: number; daysOverdue: number; hasBrokenPromise: boolean; contactAttempts: number; heuristicOpportunityScore?: number }
 export interface CapacityAllocation { selected: WorkCandidate[]; deferred: WorkCandidate[] }
 export interface DailyCapacityRecord { simulationDay: number; contactBudget: number; contactConsumed: number; contactDeferredEligible: number; humanReviewBudget: number; humanReviewConsumed: number; humanReviewDeferredEligible: number; protectedDecisions: number; protectedContactActions: number }
 export interface SimulationMetrics { portfolio: Record<string, number>; recovery: Record<string, number>; interventions: Record<string, number>; promises: Record<string, number>; safety: Record<string, number>; capacity: Record<string, number>; efficiency: Record<string, number>; reconciliation: { endingOutstandingPaise: number; expectedEndingOutstandingPaise: number; valid: boolean } }
