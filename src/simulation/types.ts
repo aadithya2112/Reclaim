@@ -1,0 +1,24 @@
+export const SIMULATOR_VERSION = "1.0.0";
+export type RecoveryState = "OPEN" | "CONTACTED" | "PROMISED" | "PARTIALLY_PAID" | "DISPUTED" | "ESCALATED" | "RECOVERED" | "CLOSED";
+export type RecoveryAction = "WAIT" | "SEND_GENTLE_REMINDER" | "SEND_PAYMENT_REMINDER" | "SEND_PAYMENT_LINK" | "REQUEST_PAYMENT_COMMITMENT" | "FOLLOW_UP_PROMISE" | "ESCALATE_TO_HUMAN" | "CLOSE_CASE";
+export type Profile = "RELIABLE_LATE_PAYER" | "CASHFLOW_CONSTRAINED" | "LOW_RESPONSIVENESS" | "DISPUTE_PRONE" | "HIGH_RISK";
+export type PromiseStatus = "ACTIVE" | "FULFILLED" | "PARTIALLY_FULFILLED" | "BROKEN" | "CANCELLED";
+
+export interface PromiseToPay { id: string; createdDay: number; amountPaise: number; dueDay: number; status: PromiseStatus; amountFulfilledPaise: number; paymentIds: string[] }
+export interface ObservableHistory { historicalInvoices: number; historicalLatePayments: number; priorPromises: number; priorPromisesFulfilled: number; priorDisputes: number; riskSegment: "LOW" | "MEDIUM" | "HIGH" }
+export interface SimulationCase {
+  id: string; customerId: string; invoiceId: string; originalAmountPaise: number; startingOutstandingPaise: number; outstandingPaise: number; recoveredPaise: number;
+  invoiceIssueDate: string; dueDate: string; initialDaysOverdue: number; state: RecoveryState; contactAttempts: number; lastContactDay: number | null;
+  history: ObservableHistory; promises: PromiseToPay[]; dispute: boolean; escalated: boolean; closed: boolean; initialRecoveredPaise: number; recoveredDay: number | null;
+}
+export interface HiddenCustomerState { profile: Profile; responsiveness: number; paymentAbility: number; willingness: number; disputePropensity: number; promiseReliability: number; partialTendency: number; spontaneousPayment: number }
+export interface ObservableRecoveryContext extends Omit<SimulationCase, "initialDaysOverdue"> { simulationDay: number; daysOverdue: number }
+export interface RecoveryDecision { action: RecoveryAction; reason: string; metadata?: Record<string, unknown> }
+export interface RecoveryStrategy { readonly name: string; decide(context: ObservableRecoveryContext): RecoveryDecision }
+export interface PolicyResult { proposedAction: RecoveryAction; allowed: boolean; reason: string; executedAction: RecoveryAction; rule?: string }
+export interface AuditEvent { eventId: string; runId: string; caseId: string; simulationDay: number; simulatedAt: string; type: string; source: "SIMULATION" | "STRATEGY" | "POLICY"; reason: string; action?: RecoveryAction; amountPaise?: number; metadata?: Record<string, unknown> }
+export interface SyntheticPaymentEvent { eventId: string; paymentId: string; caseId: string; amountPaise: number; simulationDay: number; source: "SIMULATION"; reason: string; promiseId?: string }
+export interface SimulationConfig { seed: number; caseCount: number; days: number; startDate: string; strategy: "baseline"; scenario: "standard"; policy: PolicyConfig }
+export interface PolicyConfig { maxContactAttempts: number; cooldownDays: number; highValueThresholdPaise: number }
+export interface SimulationMetrics { portfolio: Record<string, number>; recovery: Record<string, number>; interventions: Record<string, number>; promises: Record<string, number>; safety: Record<string, number>; efficiency: Record<string, number>; reconciliation: { endingOutstandingPaise: number; expectedEndingOutstandingPaise: number; valid: boolean } }
+export interface SimulationResult { runId: string; config: SimulationConfig; initialPortfolio: SimulationCase[]; hiddenState: Record<string, HiddenCustomerState>; finalCases: SimulationCase[]; auditEvents: AuditEvent[]; payments: SyntheticPaymentEvent[]; metrics: SimulationMetrics }
