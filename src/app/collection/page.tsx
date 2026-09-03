@@ -4,7 +4,7 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-const MILESTONE_CASE_ID = "rc_m1_inv_002";
+const MILESTONE_CASE_ID = "rc_m7_inv_003";
 
 export default async function CollectionPage() {
   const recoveryCase = await getRecoveryCaseSnapshot(MILESTONE_CASE_ID);

@@ -59,6 +59,8 @@ export function RecoveryWorkspace({
   const [error, setError] = useState<string | null>(null);
 
   const isRecovered = recoveryCase.status === "RECOVERED";
+  const isPartiallyPaid = recoveryCase.status === "PARTIALLY_PAID";
+  const hasVerifiedPayment = recoveryCase.amountRecovered > 0;
   const hasPaymentLink = Boolean(recoveryCase.razorpayPaymentLinkUrl);
   const outstanding = Math.max(
     0,
@@ -144,7 +146,7 @@ export function RecoveryWorkspace({
           </div>
 
           <div className="amount-block">
-            <p>Outstanding</p>
+            <p>{isPartiallyPaid ? "Remaining balance" : "Outstanding"}</p>
             <strong>{formatMinorUnits(outstanding)}</strong>
             <div className="amount-progress" aria-label={`${recoveredPercent}% recovered`}>
               <span style={{ width: `${recoveredPercent}%` }} />
@@ -190,11 +192,16 @@ export function RecoveryWorkspace({
                   <div className="payment-row" role="row" key={payment.id}>
                     <div role="cell">
                       <strong>{payment.razorpayPaymentId}</strong>
-                      <span>{dateTime.format(new Date(payment.capturedAt))}</span>
+                      <span>
+                        {dateTime.format(new Date(payment.capturedAt))} · {payment.razorpayEventType ?? "legacy verified event"}
+                      </span>
                     </div>
                     <div role="cell">
                       <span>{payment.method.toUpperCase()}</span>
                       <strong>{formatMinorUnits(payment.amount)}</strong>
+                      {payment.paymentLinkAmountPaid !== null ? (
+                        <span>{formatMinorUnits(payment.paymentLinkAmountPaid)} cumulative on link</span>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -206,13 +213,21 @@ export function RecoveryWorkspace({
         <aside className="case-inspector" aria-label="Recovery workflow">
           <div className="inspector-head">
             <p className="eyebrow">Collection path</p>
-            <h2>{isRecovered ? "Payment recovered" : "Recovery in progress"}</h2>
+            <h2>
+              {isRecovered
+                ? "Payment recovered"
+                : isPartiallyPaid
+                  ? "Partial payment verified"
+                  : "Recovery in progress"}
+            </h2>
             <p>
               {isRecovered
                 ? "The verified payment has been recorded against this case."
+                : isPartiallyPaid
+                  ? `Verified money is recorded. Outreach is adjusted to the ${formatMinorUnits(outstanding)} balance.`
                 : hasPaymentLink
                   ? "The link is ready. Case state changes only after a signed webhook."
-                  : "Create a hosted checkout for the full outstanding amount."}
+                  : "Create a hosted checkout that accepts a bounded partial payment."}
             </p>
           </div>
 
@@ -221,18 +236,24 @@ export function RecoveryWorkspace({
             <FlowStep label="Recovery case" detail="Owned by this application" state="complete" />
             <FlowStep
               label="Payment Link"
-              detail={hasPaymentLink ? "Created in Razorpay" : "Not created"}
+              detail={hasPaymentLink ? "Partial-enabled in Razorpay" : "Not created"}
               state={hasPaymentLink ? "complete" : "current"}
             />
             <FlowStep
               label="Verified webhook"
-              detail={isRecovered ? "Signature accepted" : "Awaiting payment"}
-              state={isRecovered ? "complete" : hasPaymentLink ? "current" : "waiting"}
+              detail={hasVerifiedPayment ? "Signature accepted" : "Awaiting payment"}
+              state={hasVerifiedPayment ? "complete" : hasPaymentLink ? "current" : "waiting"}
             />
             <FlowStep
-              label="Recovered"
-              detail={isRecovered ? "Case closed" : "Pending"}
-              state={isRecovered ? "complete" : "waiting"}
+              label="Outreach response"
+              detail={
+                isRecovered
+                  ? "Stopped after full recovery"
+                  : isPartiallyPaid
+                    ? "Adjusted to remaining balance"
+                    : "Pending verified money"
+              }
+              state={isRecovered ? "complete" : isPartiallyPaid ? "current" : "waiting"}
             />
           </ol>
 
@@ -248,7 +269,7 @@ export function RecoveryWorkspace({
                 target="_blank"
                 rel="noreferrer"
               >
-                Open Razorpay checkout <span aria-hidden="true">↗</span>
+                {isPartiallyPaid ? "Pay remaining balance" : "Open Razorpay checkout"} <span aria-hidden="true">↗</span>
               </a>
             ) : (
               <div className="success-note">
@@ -262,7 +283,7 @@ export function RecoveryWorkspace({
 
             {hasPaymentLink && !isRecovered ? (
               <p className="polling-note">
-                <span aria-hidden="true" /> Awaiting verified webhook
+                <span aria-hidden="true" /> {isPartiallyPaid ? "Awaiting the next verified payment" : "Awaiting verified webhook"}
               </p>
             ) : null}
 
@@ -273,6 +294,9 @@ export function RecoveryWorkspace({
             <div className="external-reference">
               <span>Razorpay Payment Link</span>
               <code>{recoveryCase.razorpayPaymentLinkId}</code>
+              <span>
+                Test Mode · {hasVerifiedPayment ? "verified payment event" : "awaiting signed payment event"} · {recoveryCase.outreachStatus.replaceAll("_", " ")}
+              </span>
             </div>
           ) : null}
         </aside>

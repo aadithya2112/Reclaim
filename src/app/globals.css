@@ -135,6 +135,8 @@ h1, h2, p { margin-top: 0; }
 .status span { width: 7px; height: 7px; border-radius: 50%; background: #eea535; }
 .status--recovered { border-color: rgba(12, 124, 71, .3); color: var(--accent-deep); }
 .status--recovered span { background: var(--accent); box-shadow: 0 0 0 4px rgba(54, 208, 127, .14); }
+.status--partially_paid { border-color: rgba(181, 127, 28, .35); color: #8a5b08; }
+.status--partially_paid span { background: #d69a2d; box-shadow: 0 0 0 4px rgba(214, 154, 45, .14); }
 
 .amount-block { margin-top: clamp(62px, 9vw, 126px); animation: rise-in .55s .08s ease-out both; }
 .amount-block > p { margin-bottom: 10px; color: var(--muted); font-size: 13px; }

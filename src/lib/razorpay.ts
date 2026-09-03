@@ -29,6 +29,19 @@ type CreatePaymentLinkInput = {
   currency: string;
 };
 
+const MINIMUM_PARTIAL_PAYMENT_PAISE = 50_000;
+
+export function minimumPartialPaymentFor(amount: number) {
+  if (!Number.isSafeInteger(amount) || amount <= MINIMUM_PARTIAL_PAYMENT_PAISE) {
+    throw new Error("Payment Link amount must exceed the minimum partial payment");
+  }
+
+  return Math.min(
+    amount - 1,
+    Math.max(MINIMUM_PARTIAL_PAYMENT_PAISE, Math.floor(amount * 0.25)),
+  );
+}
+
 export function createPaymentLinkReferenceId(recoveryCaseId: string) {
   const caseDigest = createHash("sha256")
     .update(recoveryCaseId)
@@ -47,9 +60,10 @@ export async function createRazorpayPaymentLink({
 }: CreatePaymentLinkInput): Promise<RazorpayPaymentLink> {
   const env = getRazorpayEnv();
   const referenceId = createPaymentLinkReferenceId(recoveryCaseId);
-  const callbackUrl = new URL("/", env.APP_URL);
+  const callbackUrl = new URL("/collection", env.APP_URL);
   callbackUrl.searchParams.set("case", recoveryCaseId);
   callbackUrl.searchParams.set("checkout", "returned");
+  const minimumPartialAmount = minimumPartialPaymentFor(amount);
 
   const response = await fetch("https://api.razorpay.com/v1/payment_links", {
     method: "POST",
@@ -62,7 +76,8 @@ export async function createRazorpayPaymentLink({
     body: JSON.stringify({
       amount,
       currency,
-      accept_partial: false,
+      accept_partial: true,
+      first_min_partial_amount: minimumPartialAmount,
       reference_id: referenceId,
       description: `Recovery for invoice ${invoiceNumber}`,
       notify: { sms: false, email: false },

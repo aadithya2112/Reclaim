@@ -1,8 +1,8 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { payments, recoveryCases } from "@/db/schema";
 import { getRazorpayEnv } from "@/lib/env";
-import { recoveryStatusFor } from "@/lib/recovery";
+import { outreachStatusFor, recoveryStatusFor } from "@/lib/recovery";
 import {
   readWebhookEvent,
   verifyWebhookSignature,
@@ -47,7 +47,8 @@ export async function POST(request: Request) {
       .select()
       .from(recoveryCases)
       .where(eq(recoveryCases.razorpayPaymentLinkId, paymentLink.id))
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!recoveryCase) return { kind: "unknown" as const };
 
@@ -58,6 +59,21 @@ export async function POST(request: Request) {
       return { kind: "currency_mismatch" as const };
     }
 
+    const linkAmount =
+      recoveryCase.razorpayPaymentLinkAmount ?? paymentLink.amount;
+    const startingRecovered =
+      recoveryCase.paymentLinkStartingRecovered ??
+      recoveryCase.amountDue - paymentLink.amount;
+    const correlationMismatch =
+      paymentLink.amount !== linkAmount ||
+      startingRecovered < 0 ||
+      startingRecovered + linkAmount !== recoveryCase.amountDue ||
+      (recoveryCase.razorpayPaymentLinkReferenceId !== null &&
+        paymentLink.reference_id !==
+          recoveryCase.razorpayPaymentLinkReferenceId);
+
+    if (correlationMismatch) return { kind: "correlation_mismatch" as const };
+
     const inserted = await tx
       .insert(payments)
       .values({
@@ -67,6 +83,8 @@ export async function POST(request: Request) {
         razorpayOrderId: payment.order_id ?? null,
         razorpayPaymentLinkId: paymentLink.id,
         razorpayEventId: eventId,
+        razorpayEventType: webhook.event,
+        paymentLinkAmountPaid: paymentLink.amount_paid,
         amount: payment.amount,
         currency: payment.currency,
         method: payment.method,
@@ -75,14 +93,11 @@ export async function POST(request: Request) {
       .onConflictDoNothing()
       .returning({ id: payments.id });
 
-    const [total] = await tx
-      .select({
-        amount: sql<number>`coalesce(sum(${payments.amount}), 0)::bigint`,
-      })
-      .from(payments)
-      .where(eq(payments.recoveryCaseId, recoveryCase.id));
-
-    const amountRecovered = Number(total.amount);
+    const cumulativeRecovered = startingRecovered + paymentLink.amount_paid;
+    const amountRecovered = Math.max(
+      recoveryCase.amountRecovered,
+      cumulativeRecovered,
+    );
     const status = recoveryStatusFor(
       recoveryCase.amountDue,
       amountRecovered,
@@ -94,6 +109,9 @@ export async function POST(request: Request) {
       .set({
         amountRecovered,
         status,
+        razorpayPaymentLinkReferenceId: paymentLink.reference_id,
+        razorpayPaymentLinkAmount: linkAmount,
+        paymentLinkStartingRecovered: startingRecovered,
         recoveredAt:
           status === "RECOVERED" ? (recoveryCase.recoveredAt ?? now) : null,
         updatedAt: now,
@@ -101,10 +119,17 @@ export async function POST(request: Request) {
       .where(eq(recoveryCases.id, recoveryCase.id));
 
     return {
-      kind: inserted.length === 0 ? ("duplicate" as const) : ("paid" as const),
+      kind:
+        inserted.length === 0
+          ? ("duplicate" as const)
+          : webhook.event === "payment_link.partially_paid"
+            ? ("partially_paid" as const)
+            : ("paid" as const),
       recoveryCaseId: recoveryCase.id,
       status,
       amountRecovered,
+      outstandingAmount: recoveryCase.amountDue - amountRecovered,
+      outreachStatus: outreachStatusFor(status),
     };
   });
 
@@ -114,6 +139,13 @@ export async function POST(request: Request) {
 
   if (result.kind === "currency_mismatch") {
     return Response.json({ error: "Payment currency mismatch" }, { status: 422 });
+  }
+
+  if (result.kind === "correlation_mismatch") {
+    return Response.json(
+      { error: "Payment Link correlation mismatch" },
+      { status: 422 },
+    );
   }
 
   return Response.json({ received: true, ...result });

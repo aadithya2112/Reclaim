@@ -1,14 +1,14 @@
 # Recoup — Razorpay Receivables Recovery Spike
 
-Milestone 1 proves a single recovery loop: a local overdue invoice becomes a Razorpay Test Mode Payment Link, a signed Razorpay webhook records the captured payment, and the application-owned recovery case becomes `RECOVERED`.
+Milestones 1 and 7 prove a verified recovery loop: a local overdue invoice becomes a partial-enabled Razorpay Test Mode Payment Link, signed partial/full payment webhooks advance the balance monotonically, and the application-owned recovery case becomes `PARTIALLY_PAID` or `RECOVERED` exactly once per payment.
 
 ## What is included
 
 - Bun + Next.js App Router + TypeScript
 - PostgreSQL + Drizzle ORM
 - Razorpay Payment Links through the REST API
-- Raw-body HMAC webhook verification and duplicate-delivery protection
-- One idempotent synthetic recovery case (`INV-001`, ₹50,000)
+- Raw-body HMAC webhook verification plus duplicate and out-of-order delivery protection
+- A dedicated partial-payment demo case (`INV-003`, ₹75,000)
 - An operator workspace that polls while the verified webhook is pending
 
 The operational loop remains intentionally small. A separate pure TypeScript simulation harness now evaluates bounded recovery workflows without changing the PostgreSQL schema or calling Razorpay.
@@ -39,7 +39,7 @@ bun run simulate --compare --cases 1000 --days 30 --scenario standard --evaluati
 
 ### Architecture and implementation note
 
-- The operational `recovery_cases` and Razorpay-specific `payments` tables are unchanged. The simulator reuses their conceptual accounting rule—accepted payments reduce outstanding money exactly once—but uses provider-neutral, unmistakably synthetic payment events.
+- The operational `recovery_cases` and Razorpay-specific `payments` tables remain separate from the simulator. The simulator reuses their conceptual accounting rule—accepted payments reduce outstanding money exactly once—but uses provider-neutral, unmistakably synthetic payment events.
 - Simulation-only cases, promises, latent customer traits, audit events, and metrics live under `src/simulation`. Keeping them out of operational tables avoids hidden synthetic attributes contaminating merchant state and avoids a risky webhook refactor.
 - A strategy receives only an explicit observable projection: invoice and balance facts, dates, visible history, contacts, promises, and current status. Hidden response, ability, willingness, dispute, and reliability assumptions stay in a separate environment map.
 - `RecoveryStrategy` is pluggable. Recoup and all three baselines use observable information only. A separate policy engine enforces terminal stops, dispute/escalation stops, cooldowns, contact limits, promise protection, and high-value human review.
@@ -96,6 +96,12 @@ Open `http://localhost:3000` to use the judge-facing development benchmark:
 
 The dashboard API is `GET /api/recovery-frontier?scenario=standard&contacts=20&reviews=4`. It returns a compact observable projection only; hidden customer traits and the potential-outcome bank are never serialized into the response. Dashboard runs use the development seed, never the held-out evaluation seeds.
 
+### Verified partial-payment loop (Milestone 7)
+
+The `/collection` workspace uses `INV-003` as a fresh ₹75,000 Test Mode fixture. Its Standard Payment Link accepts partial payment with a deterministic first-payment floor of the greater of ₹500 or 25% of the link amount. The application stores the link ID, unique reference, amount, and starting recovered balance for explicit correlation.
+
+Both `payment_link.partially_paid` and `payment_link.paid` are accepted only after raw-body signature verification. Payment and event IDs are unique, the case row is locked during mutation, and Razorpay's cumulative `amount_paid` advances the application balance monotonically. A delayed older partial event therefore cannot reopen or reduce a fully recovered case. `PARTIALLY_PAID` adjusts outreach to the remaining balance; `RECOVERED` stops it. These are verified Test Mode integration facts, not evidence of live merchant uplift.
+
 ## Local setup
 
 Requirements: Bun 1.3+, Docker Desktop, a Razorpay account with Test Mode API keys, and [zrok](https://docs.zrok.io/docs/getting-started/).
@@ -135,19 +141,20 @@ Copy the public HTTPS URL into `APP_URL` and restart `bun dev`. In the Razorpay 
 1. Open **Account & Settings → Webhooks**.
 2. Add `https://YOUR-ZROK-URL/api/webhooks/razorpay`.
 3. Set the same secret used in `RAZORPAY_WEBHOOK_SECRET`.
-4. Subscribe to `payment_link.paid`.
+4. Subscribe to `payment_link.partially_paid` and `payment_link.paid`.
 
 Razorpay cannot deliver a webhook directly to localhost and documents zrok as its local testing route. See [Validate and Test Webhooks](https://razorpay.com/docs/webhooks/validate-test/?preferred-country=IN).
 
 ## Run the recovery demo
 
-1. Open `http://localhost:3000/collection` and confirm `INV-001` is `OPEN` with ₹50,000 outstanding.
+1. Open `http://localhost:3000/collection` and confirm `INV-003` is `OPEN` with ₹75,000 outstanding.
 2. Select **Create test payment link**.
-3. Open the returned Razorpay-hosted checkout and complete a [Test Mode payment](https://razorpay.com/docs/payments/payments/test-card-details/).
-4. Return to the workspace. It polls while the webhook is pending.
-5. Confirm the case reads `RECOVERED`, ₹50,000 recovered, and one captured payment in the ledger.
+3. Open the returned Razorpay-hosted checkout and complete a partial [Test Mode payment](https://razorpay.com/docs/payments/payments/test-card-details/).
+4. Return to the workspace and confirm the signed webhook changes the case to `PARTIALLY_PAID`, reduces the balance exactly once, and adjusts outreach to the remainder.
+5. Pay the remaining balance through the same link. Confirm the case becomes `RECOVERED`, outstanding reaches zero, and outreach stops.
+6. Inspect the ledger for each payment's Razorpay event type and cumulative link-paid value.
 
-The callback URL only returns the browser to the workspace. It never changes case state. Only a valid `payment_link.paid` webhook can record money or mark the case recovered.
+The callback URL only returns the browser to the workspace. It never changes case state. Only a valid signed supported webhook can record money or advance recovery status.
 
 ## Commands
 
@@ -165,7 +172,7 @@ bun run simulate --strategy no-intervention --contact-capacity 25 --review-capac
 bun run simulate --compare --cases 1000 --days 30 --seed 42 --contact-capacity 25 --review-capacity 5
 bun run db:generate     # generate a migration from the schema
 bun run db:migrate      # apply migrations
-bun run db:seed         # idempotently create the Milestone 1 fixture
+bun run db:seed         # idempotently create the operational demo fixtures
 ```
 
 Database integration tests are opt-in so the normal unit suite does not mutate a developer database. Point `TEST_DATABASE_URL` at a migrated disposable PostgreSQL database:

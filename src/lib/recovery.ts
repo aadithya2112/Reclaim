@@ -12,7 +12,8 @@ export type RecoveryCaseSnapshot = {
   currency: string;
   amountDue: number;
   amountRecovered: number;
-  status: "OPEN" | "RECOVERED";
+  status: "OPEN" | "PARTIALLY_PAID" | "RECOVERED";
+  outreachStatus: "ACTIVE" | "ADJUSTED_TO_BALANCE" | "STOPPED";
   razorpayPaymentLinkId: string | null;
   razorpayPaymentLinkUrl: string | null;
   recoveredAt: string | null;
@@ -22,6 +23,9 @@ export type RecoveryCaseSnapshot = {
     id: string;
     razorpayPaymentId: string;
     razorpayOrderId: string | null;
+    razorpayEventId: string;
+    razorpayEventType: string | null;
+    paymentLinkAmountPaid: number | null;
     amount: number;
     currency: string;
     method: string;
@@ -49,6 +53,7 @@ export async function getRecoveryCaseSnapshot(
 
   return {
     ...recoveryCase,
+    outreachStatus: outreachStatusFor(recoveryCase.status),
     recoveredAt: recoveryCase.recoveredAt?.toISOString() ?? null,
     createdAt: recoveryCase.createdAt.toISOString(),
     updatedAt: recoveryCase.updatedAt.toISOString(),
@@ -56,6 +61,9 @@ export async function getRecoveryCaseSnapshot(
       id: payment.id,
       razorpayPaymentId: payment.razorpayPaymentId,
       razorpayOrderId: payment.razorpayOrderId,
+      razorpayEventId: payment.razorpayEventId,
+      razorpayEventType: payment.razorpayEventType,
+      paymentLinkAmountPaid: payment.paymentLinkAmountPaid,
       amount: payment.amount,
       currency: payment.currency,
       method: payment.method,
@@ -65,5 +73,15 @@ export async function getRecoveryCaseSnapshot(
 }
 
 export function recoveryStatusFor(amountDue: number, amountRecovered: number) {
-  return amountRecovered >= amountDue ? "RECOVERED" : "OPEN";
+  if (amountRecovered >= amountDue) return "RECOVERED" as const;
+  if (amountRecovered > 0) return "PARTIALLY_PAID" as const;
+  return "OPEN" as const;
+}
+
+export function outreachStatusFor(
+  status: RecoveryCaseSnapshot["status"],
+): RecoveryCaseSnapshot["outreachStatus"] {
+  if (status === "RECOVERED") return "STOPPED";
+  if (status === "PARTIALLY_PAID") return "ADJUSTED_TO_BALANCE";
+  return "ACTIVE";
 }

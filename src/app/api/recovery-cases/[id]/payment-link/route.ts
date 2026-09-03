@@ -37,6 +37,10 @@ export async function POST(_request: Request, { params }: RouteContext) {
         paymentLink: {
           id: recoveryCase.razorpayPaymentLinkId,
           shortUrl: recoveryCase.razorpayPaymentLinkUrl,
+          acceptsPartial: Boolean(
+            recoveryCase.razorpayPaymentLinkReferenceId &&
+              recoveryCase.razorpayPaymentLinkAmount,
+          ),
         },
         reused: true,
       });
@@ -56,6 +60,9 @@ export async function POST(_request: Request, { params }: RouteContext) {
       .set({
         razorpayPaymentLinkId: paymentLink.id,
         razorpayPaymentLinkUrl: paymentLink.short_url,
+        razorpayPaymentLinkReferenceId: paymentLink.reference_id,
+        razorpayPaymentLinkAmount: paymentLink.amount,
+        paymentLinkStartingRecovered: recoveryCase.amountRecovered,
         updatedAt: new Date(),
       })
       .where(
@@ -74,19 +81,33 @@ export async function POST(_request: Request, { params }: RouteContext) {
         .select({
           id: recoveryCases.razorpayPaymentLinkId,
           shortUrl: recoveryCases.razorpayPaymentLinkUrl,
+          referenceId: recoveryCases.razorpayPaymentLinkReferenceId,
+          amount: recoveryCases.razorpayPaymentLinkAmount,
         })
         .from(recoveryCases)
         .where(eq(recoveryCases.id, recoveryCase.id))
         .limit(1);
 
       if (existingCase?.id && existingCase.shortUrl) {
-        return Response.json({ paymentLink: existingCase, reused: true });
+        return Response.json({
+          paymentLink: {
+            id: existingCase.id,
+            shortUrl: existingCase.shortUrl,
+            acceptsPartial: Boolean(
+              existingCase.referenceId && existingCase.amount,
+            ),
+          },
+          reused: true,
+        });
       }
 
       throw new Error("Payment Link was created but could not be persisted");
     }
 
-    return Response.json({ paymentLink: updatedCase, reused: false });
+    return Response.json({
+      paymentLink: { ...updatedCase, acceptsPartial: true },
+      reused: false,
+    });
   } catch (error) {
     if (error instanceof RazorpayApiError) {
       return Response.json(

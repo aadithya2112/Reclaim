@@ -11,6 +11,7 @@ import {
 
 export const recoveryCaseStatus = pgEnum("recovery_case_status", [
   "OPEN",
+  "PARTIALLY_PAID",
   "RECOVERED",
 ]);
 
@@ -31,6 +32,14 @@ export const recoveryCases = pgTable(
     status: recoveryCaseStatus("status").notNull().default("OPEN"),
     razorpayPaymentLinkId: text("razorpay_payment_link_id"),
     razorpayPaymentLinkUrl: text("razorpay_payment_link_url"),
+    razorpayPaymentLinkReferenceId: text("razorpay_payment_link_reference_id"),
+    razorpayPaymentLinkAmount: bigint("razorpay_payment_link_amount", {
+      mode: "number",
+    }),
+    paymentLinkStartingRecovered: bigint(
+      "payment_link_starting_recovered",
+      { mode: "number" },
+    ),
     recoveredAt: timestamp("recovered_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -60,6 +69,10 @@ export const payments = pgTable(
     razorpayOrderId: text("razorpay_order_id"),
     razorpayPaymentLinkId: text("razorpay_payment_link_id").notNull(),
     razorpayEventId: text("razorpay_event_id").notNull(),
+    razorpayEventType: text("razorpay_event_type"),
+    paymentLinkAmountPaid: bigint("payment_link_amount_paid", {
+      mode: "number",
+    }),
     amount: bigint("amount", { mode: "number" }).notNull(),
     currency: text("currency").notNull(),
     method: text("method").notNull(),

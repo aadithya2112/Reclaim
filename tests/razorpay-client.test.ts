@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
-import { createRazorpayPaymentLink } from "@/lib/razorpay";
+import {
+  createRazorpayPaymentLink,
+  minimumPartialPaymentFor,
+} from "@/lib/razorpay";
 
 const originalFetch = globalThis.fetch;
 
@@ -8,7 +11,7 @@ afterEach(() => {
 });
 
 describe("Razorpay Payment Link client", () => {
-  it("sends a full-payment Test Mode request with a unique attempt reference", async () => {
+  it("creates a partial-enabled Test Mode link with a bounded minimum and unique reference", async () => {
     process.env.DATABASE_URL = "postgresql://recovery:recovery@localhost/recovery";
     process.env.APP_URL = "https://recovery.example.com";
     process.env.RAZORPAY_KEY_ID = "rzp_test_example";
@@ -20,7 +23,8 @@ describe("Razorpay Payment Link client", () => {
       expect(request).toMatchObject({
         amount: 5_000_000,
         currency: "INR",
-        accept_partial: false,
+        accept_partial: true,
+        first_min_partial_amount: 1_250_000,
         reminder_enable: false,
         callback_method: "get",
         notes: {
@@ -31,7 +35,7 @@ describe("Razorpay Payment Link client", () => {
       expect(request.reference_id).toMatch(/^rec_[a-f0-9]{10}_[a-f0-9]{12}$/);
       expect(String(request.reference_id).length).toBeLessThanOrEqual(40);
       expect(request.callback_url).toBe(
-        "https://recovery.example.com/?case=rc_m1_inv_001&checkout=returned",
+        "https://recovery.example.com/collection?case=rc_m1_inv_001&checkout=returned",
       );
 
       return Response.json({
@@ -54,5 +58,13 @@ describe("Razorpay Payment Link client", () => {
 
     expect(paymentLink.id).toBe("plink_test_link");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a ₹500 floor and rejects links too small for a meaningful partial payment", () => {
+    expect(minimumPartialPaymentFor(100_000)).toBe(50_000);
+    expect(minimumPartialPaymentFor(5_000_000)).toBe(1_250_000);
+    expect(() => minimumPartialPaymentFor(50_000)).toThrow(
+      "must exceed the minimum partial payment",
+    );
   });
 });

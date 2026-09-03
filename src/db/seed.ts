@@ -30,8 +30,20 @@ await db
       amountRecovered: 0,
       status: "OPEN",
     },
+    {
+      id: "rc_m7_inv_003",
+      invoiceNumber: "INV-003",
+      customerName: "Northstar Components Pvt. Ltd.",
+      customerEmail: "accounts@example.test",
+      customerPhone: "+919876543211",
+      dueDate: "2026-07-20",
+      currency: "INR",
+      amountDue: 7_500_000,
+      amountRecovered: 0,
+      status: "OPEN",
+    },
   ])
   .onConflictDoNothing({ target: recoveryCases.id });
 
-console.log("Seeded recovery cases INV-001 and INV-002.");
+console.log("Seeded recovery cases INV-001, INV-002, and INV-003.");
 await closeDb();
