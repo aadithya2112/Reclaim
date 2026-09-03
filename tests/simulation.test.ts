@@ -10,10 +10,13 @@ import {
   projectObservable,
   RazorpayNativeReminderBaselineStrategy,
   runSimulation,
+  validateDecisionCache,
+  validateRecoveryDecision,
 } from "../src/simulation/simulator";
+import { RECOUP_STRATEGY_VERSION, RecoupHybridStrategy } from "../src/simulation/recoup-strategy";
 import { createPotentialOutcomeBank, stableJson, validatePotentialOutcomeBank } from "../src/simulation/potential-outcomes";
 import { EVALUATION_SET_MANIFEST, SCENARIO_MANIFESTS } from "../src/simulation/scenarios";
-import type { SimulationCase, WorkCandidate } from "../src/simulation/types";
+import type { RecoveryStrategy, SimulationCase, WorkCandidate } from "../src/simulation/types";
 
 describe("deterministic recovery simulation", () => {
   test("portfolio is deterministic, varied by seed, and valid", () => {
@@ -41,6 +44,28 @@ describe("deterministic recovery simulation", () => {
     const context = projectObservable(generated.cases[0], 0) as unknown as Record<string, unknown>;
     for (const key of ["profile", "responsiveness", "paymentAbility", "willingness", "disputePropensity", "promiseReliability", "partialTendency", "spontaneousPayment"]) expect(key in context).toBe(false);
     expect(new BaselineStrategy().decide(projectObservable(generated.cases[0], 0)).action).toBeString();
+  });
+
+  test("Recoup emits a structured, keyless, observable-only proposal", () => {
+    const c = projectObservable(generatePortfolio({ ...DEFAULT_CONFIG, caseCount: 1 }).cases[0], 5);
+    const strategy = new RecoupHybridStrategy();
+    const first = strategy.decide(c);
+    expect(first).toEqual(strategy.decide(structuredClone(c)));
+    expect(first.strategyVersion).toBe(RECOUP_STRATEGY_VERSION);
+    expect(first.inferenceMode).toBe("DETERMINISTIC_KEYLESS");
+    expect(first.confidence).toBeGreaterThanOrEqual(0);
+    expect(first.confidence).toBeLessThanOrEqual(1);
+    expect(first.factors?.length).toBeGreaterThan(0);
+    expect(first.metadata).toMatchObject({ evidenceBoundary: "OBSERVABLE_SYNTHETIC_CASE_FACTS_ONLY", calibratedProbability: false, externalModelInvoked: false });
+    expect(JSON.stringify(first)).not.toMatch(/responsiveness|paymentAbility|willingness|promiseReliability|potentialOutcomeBank|hiddenState/);
+    expect(() => validateRecoveryDecision(first)).not.toThrow();
+  });
+
+  test("invalid or unbounded strategy proposals fail before execution", () => {
+    expect(() => validateRecoveryDecision({ action: "DELETE_CASE" as never, reason: "unsafe" })).toThrow("invalid or unbounded");
+    expect(() => validateRecoveryDecision({ action: "WAIT", reason: "", confidence: 2 })).toThrow();
+    const invalid: RecoveryStrategy = { name: "recoup-hybrid", decide: () => ({ action: "WAIT", reason: "invalid confidence", confidence: -1 }) };
+    expect(() => runSimulation({ caseCount: 1, days: 1 }, invalid)).toThrow("confidence");
   });
 
   test("keyed randomness is independent of unrelated draw order", () => {
@@ -104,6 +129,12 @@ describe("deterministic recovery simulation", () => {
     expect(forward.selected.map((item) => item.caseId)).toEqual(["case-b", "case-a"]);
   });
 
+  test("Recoup priority scores influence scarce-capacity allocation with stable fallbacks", () => {
+    const candidate = (caseId: string, outstandingPaise: number, priorityScore?: number): WorkCandidate => ({ caseId, outstandingPaise, priorityScore, action: "SEND_PAYMENT_LINK", capacityKind: "CONTACT", daysOverdue: 20, hasBrokenPromise: false, contactAttempts: 0 });
+    const result = allocateDailyWork([candidate("large-low-priority", 1_000_000, 20), candidate("smaller-high-priority", 500_000, 80)], 1, 0);
+    expect(result.selected[0].caseId).toBe("smaller-high-priority");
+  });
+
   test("native reminder baseline is a disclosed fixed simulation schedule", () => {
     const strategy = new RazorpayNativeReminderBaselineStrategy();
     const c = projectObservable(generatePortfolio({ ...DEFAULT_CONFIG, caseCount: 1 }).cases[0], 0);
@@ -115,13 +146,55 @@ describe("deterministic recovery simulation", () => {
 
   test("strategy comparison uses one frozen paired synthetic environment", () => {
     const comparison = compareStrategies({ caseCount: 40, days: 8, seed: 123, capacity: { dailyContactLimit: 5, dailyHumanReviewLimit: 2 } });
-    expect(comparison.results.map((result) => result.config.strategy)).toEqual(["razorpay-native-reminders", "finance-age-bucket", "no-intervention"]);
+    expect(comparison.results.map((result) => result.config.strategy)).toEqual(["recoup-hybrid", "razorpay-native-reminders", "finance-age-bucket", "no-intervention"]);
     for (const result of comparison.results.slice(1)) expect(result.initialPortfolio).toEqual(comparison.results[0].initialPortfolio);
     expect(comparison.pairedOutcomeStatus).toBe("FROZEN_PAIRED_SYNTHETIC");
     expect(comparison.reconciliation.valid).toBe(true);
     expect(comparison.potentialOutcomeBankHash).toHaveLength(64);
     for (const result of comparison.results) expect(result.potentialOutcomeBankHash).toBe(comparison.potentialOutcomeBankHash);
     expect(comparison.limitation).toContain("not a real-world causal claim");
+    expect(comparison.comparativeMetrics?.evidenceLabel).toBe("SIMULATED_DIFFERENCE_NOT_CAUSAL_UPLIFT");
+    expect(comparison.comparativeMetrics?.baseline).toBe("razorpay-native-reminders");
+    expect(comparison.comparativeMetrics?.deltas).toHaveLength(4);
+  });
+
+  test("decision cache is complete, deterministic, attributable, and excludes hidden environment data", () => {
+    const config = { caseCount: 14, days: 7, seed: 91, strategy: "recoup-hybrid" as const, capacity: { dailyContactLimit: 3, dailyHumanReviewLimit: 1 } };
+    const first = runSimulation(config);
+    const second = runSimulation(config);
+    expect(first.decisionCache).toEqual(second.decisionCache);
+    expect(first.decisionCache.sha256).toHaveLength(64);
+    expect(first.decisionCache.entries).toHaveLength(config.caseCount * config.days);
+    expect(new Set(first.decisionCache.entries.map((entry) => `${entry.simulationDay}:${entry.caseId}`)).size).toBe(config.caseCount * config.days);
+    expect(first.decisionCache.entries.every((entry) => entry.cacheKey.length === 64 && entry.inputHash.length === 64 && entry.strategyVersion === RECOUP_STRATEGY_VERSION)).toBe(true);
+    expect(JSON.stringify(first.decisionCache)).not.toMatch(/responsiveness|paymentAbility|willingness|promiseReliability|potentialOutcomeBank|hiddenState/);
+    expect(() => validateDecisionCache(first.decisionCache)).not.toThrow();
+    const tampered = structuredClone(first.decisionCache);
+    tampered.entries[0].decision.reason = "tampered";
+    expect(() => validateDecisionCache(tampered)).toThrow("tampered");
+  });
+
+  test("strategy context mutation cannot alter authoritative case or policy state", () => {
+    const mutatingStrategy: RecoveryStrategy = {
+      name: "recoup-hybrid",
+      decide(context) {
+        context.outstandingPaise = 0;
+        context.dispute = false;
+        context.promises.length = 0;
+        return { action: "WAIT", reason: "Mutation attempt is isolated." };
+      },
+    };
+    const result = runSimulation({ caseCount: 8, days: 2, seed: 42 }, mutatingStrategy);
+    expect(result.metrics.reconciliation.valid).toBe(true);
+    for (const item of result.finalCases) expect(item.outstandingPaise + item.recoveredPaise).toBe(item.originalAmountPaise);
+  });
+
+  test("deterministic policy remains authoritative over Recoup proposals", () => {
+    const result = runSimulation({ caseCount: 220, days: 4, seed: 42, strategy: "recoup-hybrid", capacity: { dailyContactLimit: 30, dailyHumanReviewLimit: 5 } });
+    const blocked = result.auditEvents.filter((event) => event.type === "ACTION_BLOCKED");
+    expect(blocked.length).toBeGreaterThan(0);
+    expect(blocked.some((event) => ["COOLDOWN", "HIGH_VALUE", "PROMISE_PROTECTION", "DISPUTE_STOP", "TERMINAL_STOP"].includes(String(event.metadata?.rule)))).toBe(true);
+    expect(result.metrics.reconciliation.valid).toBe(true);
   });
 
   test("bank is canonical across strategy ordering and portfolio case iteration", () => {

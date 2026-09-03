@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { RecoveryCaseSnapshot } from "@/lib/recovery";
 
 const money = new Intl.NumberFormat("en-IN", {
@@ -121,8 +122,11 @@ export function RecoveryWorkspace({
           </span>
           <span>recoup</span>
         </a>
-        <div className="environment">
-          <span className="environment-dot" /> Razorpay test mode
+        <div className="collection-navigation">
+          <Link href="/">Command center</Link>
+          <div className="environment">
+            <span className="environment-dot" /> Razorpay test mode
+          </div>
         </div>
       </header>
 

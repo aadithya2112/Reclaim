@@ -13,7 +13,9 @@ Milestone 1 proves a single recovery loop: a local overdue invoice becomes a Raz
 
 The operational loop remains intentionally small. A separate pure TypeScript simulation harness now evaluates bounded recovery workflows without changing the PostgreSQL schema or calling Razorpay.
 
-## Deterministic recovery simulation (Milestones 2–4)
+The root workspace now opens the Milestone 6 Recovery Command Center. The original verified Razorpay Test Mode collection loop remains available at `/collection`.
+
+## Deterministic recovery simulation (Milestones 2–5)
 
 Run a reproducible synthetic benchmark:
 
@@ -23,6 +25,8 @@ bun run simulate --cases 1000 --days 30 --seed 42
 bun run simulate --cases 100 --days 30 --seed 42 --case sim-case-000001
 # Run the Razorpay-native baseline with explicit daily budgets:
 bun run simulate --strategy razorpay-native-reminders --contact-capacity 25 --review-capacity 5
+# Run the keyless Recoup hybrid strategy:
+bun run simulate --strategy recoup-hybrid --contact-capacity 25 --review-capacity 5
 # Compare all strategies in the default development set and standard scenario:
 bun run simulate --compare --cases 1000 --days 30 --scenario standard --evaluation-set development --contact-capacity 25 --review-capacity 5
 # Intentional final held-out evaluation (do not tune strategy behavior to these results):
@@ -38,13 +42,16 @@ bun run simulate --compare --cases 1000 --days 30 --scenario standard --evaluati
 - The operational `recovery_cases` and Razorpay-specific `payments` tables are unchanged. The simulator reuses their conceptual accounting rule—accepted payments reduce outstanding money exactly once—but uses provider-neutral, unmistakably synthetic payment events.
 - Simulation-only cases, promises, latent customer traits, audit events, and metrics live under `src/simulation`. Keeping them out of operational tables avoids hidden synthetic attributes contaminating merchant state and avoids a risky webhook refactor.
 - A strategy receives only an explicit observable projection: invoice and balance facts, dates, visible history, contacts, promises, and current status. Hidden response, ability, willingness, dispute, and reliability assumptions stay in a separate environment map.
-- `RecoveryStrategy` is pluggable. The finance age-bucket, Razorpay-native reminder, and no-intervention strategies use observable information only. A separate policy engine enforces terminal stops, dispute/escalation stops, cooldowns, contact limits, promise protection, and high-value human review.
+- `RecoveryStrategy` is pluggable. Recoup and all three baselines use observable information only. A separate policy engine enforces terminal stops, dispute/escalation stops, cooldowns, contact limits, promise protection, and high-value human review.
+- `recoup-hybrid` is the frozen, keyless Milestone 5 decision model. It emits a runtime-validated bounded proposal with supporting factors, confidence, strategy version, and an observable-only priority score. The score ranks scarce work; it is explicitly not a calibrated payment probability. No external model is invoked in benchmark runs.
+- Every evaluated case/day decision is written to a hashed `decision-cache.json`. This makes proposal inputs and outputs reproducible and prepares an adapter boundary for future cached external-model interpretations without allowing live model variance into paired evaluation.
 - Contact capacity and human-review capacity are independent daily budgets. Contact actions consume only contact capacity. `ESCALATE_TO_HUMAN` consumes only review capacity. Policy-protected `WAIT` decisions consume neither.
 - Every virtual day settles due environment events for all cases, evaluates the complete portfolio, classifies `ACT_NOW` and `WAIT_PROTECTED`, globally allocates both queues, then executes selected work. Ranking uses broken-promise status, outstanding paise, overdue age, prior attempts, and finally case ID; it never uses hidden customer traits.
 - Money is integer paise. Payments are capped at the remaining balance, synthetic event and payment identifiers are unique, and final metrics are derived from authoritative case state and reconciled against ending outstanding balances.
 
 ### Strategy semantics
 
+- `recoup-hybrid` chooses between deliberate waiting, the least forceful eligible contact, a direct Payment Link, a commitment request, broken-promise follow-up, and human review. It considers only outstanding value, overdue age, visible payment/promise/dispute history, risk segment, prior attempts, and current case state. Deterministic policy retains final authority and can block or replace every proposal.
 - `finance-age-bucket` preserves the original finance baseline as a deterministic overdue-age SOP: gentle reminder, payment reminder, Payment Link, commitment request, then human review. `baseline` remains a CLI alias for compatibility.
 - `razorpay-native-reminders` is a clearly labelled simulation assumption derived from Razorpay's documented Payment Link reminder capability. It assumes a Payment Link exists at the evaluation start and models at most three fixed reminders on simulation days 0, 3, and 7. Those exact days are a benchmark assumption, not a Razorpay default or API contract. The harness does not call Razorpay, send SMS/email, prove delivery, or prove recovery.
 - `no-intervention` takes no new recovery action. It is useful only for observing synthetic spontaneous payments and outcomes from promises already in state.
@@ -63,7 +70,7 @@ Eligible work is never selected by incidental array order. Each capacity queue i
 
 ### Artifacts and metric semantics
 
-Single runs atomically replace `simulation-results/run-<logical-id>/` and write `config.json`, observable `portfolio.json`, explicitly hidden `simulation-state.json`, `cases-final.json`, `synthetic-payments.jsonl`, ordered `audit-events.jsonl`, `daily-capacity.json`, `metrics.json`, and `summary.md`. Comparison runs additionally write `scenario-manifest.json`, `potential-outcome-bank.json` labelled **HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES**, `comparison.json`, `comparison.md`, and complete artifacts per strategy. The SHA-256 bank hash is present in the comparison and every constituent run; reconciliation confirms common portfolio, hidden state, policy, capacity, scenario, evaluation-set inputs, and per-case money.
+Single runs atomically replace `simulation-results/run-<logical-id>/` and write `config.json`, observable `portfolio.json`, explicitly hidden `simulation-state.json`, `decision-cache.json`, `cases-final.json`, `synthetic-payments.jsonl`, ordered `audit-events.jsonl`, `daily-capacity.json`, `metrics.json`, and `summary.md`. Comparison runs additionally write `scenario-manifest.json`, `potential-outcome-bank.json` labelled **HIDDEN SYNTHETIC ENVIRONMENT — NEVER PROVIDED TO STRATEGIES**, a compact `comparison.json`, `comparison.md`, and complete artifacts per strategy. The compact comparison references rather than duplicates the full bank and per-run event streams. The SHA-256 bank hash is present in the comparison and every constituent run; reconciliation confirms common portfolio, hidden state, policy, capacity, scenario, evaluation-set inputs, and per-case money. Comparison outputs report paired simulated recovery differences versus the Razorpay-native baseline alongside added contact/review burden; these are not causal uplift estimates.
 
 Recovery rate is simulated recovered paise divided by starting outstanding paise. Fully recovered means ending outstanding is zero; partially recovered means the run recovered positive money while a positive balance remains; unresolved excludes fully recovered, disputed, escalated, and closed cases. Promise fulfillment rate uses all created promises as its denominator. Capacity metrics report total budget, consumption, deferred eligible decisions, protected decisions/contacts, and utilization separately for contacts and reviews. Zero denominators return zero. INR formatting is presentation-only.
 
@@ -76,6 +83,18 @@ Named development/held-out comparisons run every declared seed and write a suite
 `contactCostMultiplier` is now an auditable synthetic relationship-burden metric (never subtracted from recovered money). The relationship-sensitive scenario applies an additional disclosed multiplier to observable long-history accounts.
 
 `recoup-agent` is replay-only in the pure simulator. A separate server-side preparation workflow calls OpenAI Responses with strict JSON Schema and shared Zod validation, then freezes context hashes, prompt/schema versions, provider/model IDs, validated decisions, and a manifest hash. Replay makes no model calls; a missing or mismatched record is an explicit cache miss. The model receives only observable text/context as untrusted data, has no tools, and never sees profiles, outcome banks, future results, or payment truth. Deterministic policy and capacity allocation own final actions.
+
+### Recovery Command Center (Milestone 6)
+
+Open `http://localhost:3000` to use the judge-facing development benchmark:
+
+- **Recovery Frontier:** reruns Recoup, Razorpay-native reminders, and the finance SOP across multiple daily contact ceilings on identical synthetic inputs. The chart presents simulated recovery against actual contact burden, with human-review counts and the range across all three development seeds alongside it. Held-out seeds remain untouched.
+- **Scenario and capacity controls:** switch among the four disclosed scenarios and change daily contact/reviewer ceilings. Results are generated locally, cached in process, and require no database, model key, Razorpay credential, or network service.
+- **Decision queues:** inspect capacity-selected ACT NOW work, policy/model-protected WAIT decisions, and eligible work deferred by exhausted capacity.
+- **Decision replay:** view the bounded proposal, observable supporting factors, confidence, deterministic policy outcome, compact audit timeline, the native baseline's action on the same case, and the paired per-case simulated recovery difference.
+- **Evidence boundary:** identifies synthetic receivables, simulated outcomes, measured decisions, and the separate Razorpay Test Mode proof. Reproducibility hashes are available without exposing hidden environment state to the browser.
+
+The dashboard API is `GET /api/recovery-frontier?scenario=standard&contacts=20&reviews=4`. It returns a compact observable projection only; hidden customer traits and the potential-outcome bank are never serialized into the response. Dashboard runs use the development seed, never the held-out evaluation seeds.
 
 ## Local setup
 
@@ -122,7 +141,7 @@ Razorpay cannot deliver a webhook directly to localhost and documents zrok as it
 
 ## Run the recovery demo
 
-1. Open `http://localhost:3000` and confirm `INV-001` is `OPEN` with ₹50,000 outstanding.
+1. Open `http://localhost:3000/collection` and confirm `INV-001` is `OPEN` with ₹50,000 outstanding.
 2. Select **Create test payment link**.
 3. Open the returned Razorpay-hosted checkout and complete a [Test Mode payment](https://razorpay.com/docs/payments/payments/test-card-details/).
 4. Return to the workspace. It polls while the webhook is pending.
@@ -139,6 +158,7 @@ bun run lint            # ESLint
 bun run typecheck       # TypeScript without emit
 bun test                # unit tests
 bun run simulate --cases 1000 --days 30 --seed 42
+bun run simulate --strategy recoup-hybrid --contact-capacity 25 --review-capacity 5
 bun run simulate --strategy finance-age-bucket --contact-capacity 25 --review-capacity 5
 bun run simulate --strategy razorpay-native-reminders --contact-capacity 25 --review-capacity 5
 bun run simulate --strategy no-intervention --contact-capacity 25 --review-capacity 5
@@ -158,6 +178,7 @@ TEST_DATABASE_URL=postgresql://recovery:recovery@localhost:5432/recovery \
 ## API surface
 
 - `GET /api/recovery-cases/:id` — current local case and captured payments
+- `GET /api/recovery-frontier` — compact observable Milestone 6 benchmark projection
 - `POST /api/recovery-cases/:id/payment-link` — create or return the case’s existing Test Mode Payment Link
 - `POST /api/webhooks/razorpay` — verify and process Razorpay webhook events
 

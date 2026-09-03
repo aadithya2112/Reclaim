@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { keyedUnit } from "./random";
 import { scenarioManifest } from "./scenarios";
+import { SIMULATOR_VERSION } from "./types";
 import type { PotentialOutcomeBank, RecoveryAction, SimulationCase, SimulationConfig } from "./types";
 
 export const CONTACT_ACTIONS: RecoveryAction[] = ["SEND_GENTLE_REMINDER", "SEND_PAYMENT_REMINDER", "SEND_PAYMENT_LINK", "REQUEST_PAYMENT_COMMITMENT", "FOLLOW_UP_PROMISE"];
@@ -25,7 +26,7 @@ export function createPotentialOutcomeBank(config: SimulationConfig, cases: read
     }
     outcomes[caseId] = { spontaneousByDay, actionsByDay, promiseByCreation };
   }
-  const base = { schemaVersion: "1.0.0" as const, simulatorVersion: "3.0.0", scenarioVersion: scenarioManifest(config.scenario).version, scenarioName: config.scenario, normalizedConfig, caseIds, supportedContactActions: CONTACT_ACTIONS, outcomes };
+  const base = { schemaVersion: "1.0.0" as const, simulatorVersion: SIMULATOR_VERSION, scenarioVersion: scenarioManifest(config.scenario).version, scenarioName: config.scenario, normalizedConfig, caseIds, supportedContactActions: CONTACT_ACTIONS, outcomes };
   return { ...base, sha256: hash(base) };
 }
 

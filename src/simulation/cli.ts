@@ -55,6 +55,7 @@ async function writeRun(result: SimulationResult, directory: string): Promise<vo
     writeFile(`${directory}/audit-events.jsonl`, `${result.auditEvents.map((event) => JSON.stringify(event)).join("\n")}\n`),
     writeFile(`${directory}/synthetic-payments.jsonl`, `${result.payments.map((payment) => JSON.stringify(payment)).join("\n")}${result.payments.length ? "\n" : ""}`),
     writeFile(`${directory}/daily-capacity.json`, json(result.dailyCapacity)),
+    writeFile(`${directory}/decision-cache.json`, json(result.decisionCache)),
     writeFile(`${directory}/metrics.json`, json(result.metrics)),
     writeFile(`${directory}/summary.md`, summary(result)),
   ]);
@@ -65,7 +66,11 @@ function summary(result: SimulationResult) {
 }
 
 function comparisonMarkdown(comparison: StrategyComparison): string {
-  const rows = comparison.results.map((result) => `| ${result.config.strategy} | ${inr(result.metrics.recovery.totalRecoveredPaise)} | ${(result.metrics.recovery.recoveryRate * 100).toFixed(2)}% | ${result.metrics.capacity.contactConsumed} | ${result.metrics.capacity.humanReviewConsumed} | ${result.metrics.capacity.contactDeferredEligible + result.metrics.capacity.humanReviewDeferredEligible} |`).join("\n");
+  const deltas = new Map(comparison.comparativeMetrics?.deltas.map((delta) => [delta.strategy, delta]));
+  const rows = comparison.results.map((result) => {
+    const delta = deltas.get(result.config.strategy);
+    return `| ${result.config.strategy} | ${inr(result.metrics.recovery.totalRecoveredPaise)} | ${delta ? inr(delta.simulatedIncrementalRecoveryPaise) : "n/a"} | ${(result.metrics.recovery.recoveryRate * 100).toFixed(2)}% | ${result.metrics.capacity.contactConsumed} | ${result.metrics.capacity.humanReviewConsumed} | ${result.metrics.capacity.contactDeferredEligible + result.metrics.capacity.humanReviewDeferredEligible} |`;
+  }).join("\n");
   return [
     "# Synthetic strategy comparison",
     "",
@@ -78,17 +83,41 @@ function comparisonMarkdown(comparison: StrategyComparison): string {
     "- Shared bank SHA-256: `" + comparison.potentialOutcomeBankHash + "`",
     "- Reconciliation: " + (comparison.reconciliation.valid ? "valid" : "INVALID"),
     "",
-    "| Strategy | Simulated recovery | Recovery rate | Contacts | Human reviews | Deferred eligible |",
-    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    "| Strategy | Simulated recovery | Difference vs native | Recovery rate | Contacts | Human reviews | Deferred eligible |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     rows,
     "",
     "## Evaluation boundary",
     "",
     comparison.limitation,
     "",
+    "Differences versus the native baseline are paired simulated differences, not causal uplift estimates. Contact and review differences must be considered alongside recovery differences.",
+    "",
     "The Razorpay-native row models a disclosed fixed three-reminder Payment Link schedule on simulation days 0, 3, and 7. Razorpay documents configurable Payment Link reminders, but this schedule, delivery, response, and recovery are simulation assumptions.",
     "",
   ].join("\n");
+}
+
+function comparisonArtifact(comparison: StrategyComparison) {
+  return {
+    comparisonId: comparison.comparisonId,
+    evidenceLabel: comparison.evidenceLabel,
+    pairedOutcomeStatus: comparison.pairedOutcomeStatus,
+    limitation: comparison.limitation,
+    commonConfig: comparison.commonConfig,
+    scenarioManifest: comparison.scenarioManifest,
+    potentialOutcomeBankHash: comparison.potentialOutcomeBankHash,
+    comparativeMetrics: comparison.comparativeMetrics,
+    reconciliation: comparison.reconciliation,
+    potentialOutcomeBankArtifact: "potential-outcome-bank.json",
+    results: comparison.results.map((result) => ({
+      runId: result.runId,
+      config: result.config,
+      potentialOutcomeBankHash: result.potentialOutcomeBankHash,
+      decisionCacheHash: result.decisionCache.sha256,
+      metrics: result.metrics,
+    })),
+  };
 }
 
 async function main() {
@@ -143,7 +172,7 @@ async function main() {
       await writeRun(result, strategyDirectory);
     }
     await Promise.all([
-      writeFile(`${directory}/comparison.json`, json(comparison)),
+      writeFile(`${directory}/comparison.json`, json(comparisonArtifact(comparison))),
       writeFile(`${directory}/comparison.md`, comparisonMarkdown(comparison)),
       writeFile(`${directory}/scenario-manifest.json`, json(comparison.scenarioManifest)),
       writeFile(`${directory}/evaluation-set-manifest.json`, json(EVALUATION_SET_MANIFEST)),

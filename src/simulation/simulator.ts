@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 import { keyedInt, keyedUnit, stableId } from "./random";
 import { createPotentialOutcomeBank, normalizeEnvironmentConfig, stableJson, validatePotentialOutcomeBank } from "./potential-outcomes";
+import { RecoupHybridStrategy } from "./recoup-strategy";
 import { profileTraits, scenarioManifest } from "./scenarios";
 import type {
   AuditEvent,
   CapacityAllocation,
   DailyCapacityRecord,
+  DecisionCache,
+  DecisionCacheEntry,
   HiddenCustomerState,
   ObservableRecoveryContext,
   PolicyConfig,
@@ -43,8 +46,9 @@ export const DEFAULT_CONFIG: SimulationConfig = {
   capacity: { dailyContactLimit: 100, dailyHumanReviewLimit: 10 },
 };
 
-export const STRATEGY_NAMES: StrategyName[] = ["razorpay-native-reminders", "finance-age-bucket", "no-intervention"];
+export const STRATEGY_NAMES: StrategyName[] = ["recoup-hybrid", "razorpay-native-reminders", "finance-age-bucket", "no-intervention"];
 const CONTACTS = new Set<RecoveryAction>(["SEND_GENTLE_REMINDER", "SEND_PAYMENT_REMINDER", "SEND_PAYMENT_LINK", "REQUEST_PAYMENT_COMMITMENT", "FOLLOW_UP_PROMISE"]);
+const ACTIONS = new Set<RecoveryAction>(["WAIT", ...CONTACTS, "ESCALATE_TO_HUMAN", "CLOSE_CASE"]);
 const TERMINAL = new Set<RecoveryState>(["DISPUTED", "ESCALATED", "RECOVERED", "CLOSED"]);
 const profiles: Profile[] = ["RELIABLE_LATE_PAYER", "CASHFLOW_CONSTRAINED", "LOW_RESPONSIVENESS", "DISPUTE_PRONE", "HIGH_RISK"];
 const clone = <T>(value: T): T => structuredClone(value);
@@ -169,10 +173,43 @@ export class RecoupAgentStrategy implements RecoveryStrategy {
 }
 
 export function createStrategy(name: StrategyName): RecoveryStrategy {
+  if (name === "recoup-hybrid") return new RecoupHybridStrategy();
   if (name === "razorpay-native-reminders") return new RazorpayNativeReminderBaselineStrategy();
   if (name === "no-intervention") return new NoInterventionStrategy();
   if (name === "recoup-agent") throw new Error("recoup-agent requires a frozen decision manifest; use RecoupAgentStrategy.");
   return new FinanceAgeBucketStrategy();
+}
+
+export function validateRecoveryDecision(value: RecoveryDecision): void {
+  if (!value || !ACTIONS.has(value.action)) throw new Error("Strategy returned an invalid or unbounded recovery action");
+  if (typeof value.reason !== "string" || !value.reason.trim()) throw new Error("Strategy decision reason must be a non-empty string");
+  if (value.confidence !== undefined && (!Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1)) throw new Error("Strategy decision confidence must be between 0 and 1");
+  if (value.strategyVersion !== undefined && (!value.strategyVersion.trim() || value.strategyVersion.length > 120)) throw new Error("Strategy version must be a non-empty bounded string");
+  if (value.metadata?.priorityScore !== undefined && (typeof value.metadata.priorityScore !== "number" || !Number.isFinite(value.metadata.priorityScore) || value.metadata.priorityScore < 0 || value.metadata.priorityScore > 150)) throw new Error("Strategy priority score must be a finite number between 0 and 150");
+  if (value.factors !== undefined) {
+    if (!Array.isArray(value.factors) || value.factors.length > 20) throw new Error("Strategy decision factors must be a bounded array");
+    for (const item of value.factors) {
+      if (!item.signal.trim() || !item.explanation.trim() || !["SUPPORTS_ACTION", "SUPPORTS_WAIT", "REQUIRES_REVIEW"].includes(item.effect)) throw new Error("Strategy decision contains an invalid factor");
+    }
+  }
+}
+
+export function validateDecisionCache(cache: DecisionCache): void {
+  if (cache.schemaVersion !== "1.0.0" || cache.evidenceLabel !== "MEASURED_STRATEGY_DECISIONS") throw new Error("Decision cache schema is incompatible");
+  const content = { schemaVersion: cache.schemaVersion, evidenceLabel: cache.evidenceLabel, entries: cache.entries };
+  const expectedHash = createHash("sha256").update(stableJson(content)).digest("hex");
+  if (cache.sha256 !== expectedHash) throw new Error("Decision cache hash is invalid or cache was tampered");
+  const coordinates = new Set<string>();
+  for (const entry of cache.entries) {
+    if (!/^[a-f0-9]{64}$/.test(entry.cacheKey) || !/^[a-f0-9]{64}$/.test(entry.inputHash)) throw new Error("Decision cache contains an invalid key or input hash");
+    const expectedKey = createHash("sha256").update(`${entry.strategy}|${entry.strategyVersion}|${entry.inputHash}`).digest("hex");
+    if (entry.cacheKey !== expectedKey) throw new Error("Decision cache key does not match its strategy input");
+    if ((entry.decision.strategyVersion ?? `${entry.strategy}-1.0.0`) !== entry.strategyVersion || (entry.decision.inferenceMode ?? "DETERMINISTIC_KEYLESS") !== entry.inferenceMode) throw new Error("Decision cache provenance does not match its proposal");
+    const coordinate = `${entry.simulationDay}:${entry.caseId}`;
+    if (coordinates.has(coordinate)) throw new Error("Decision cache contains duplicate case/day coordinates");
+    coordinates.add(coordinate);
+    validateRecoveryDecision(entry.decision);
+  }
 }
 
 export function evaluatePolicy(c: ObservableRecoveryContext, proposed: RecoveryAction, policy: PolicyConfig): PolicyResult {
@@ -192,6 +229,7 @@ function candidateComparator(a: WorkCandidate, b: WorkCandidate): number {
     if ((a.heuristicOpportunityScore ?? 0) !== (b.heuristicOpportunityScore ?? 0)) return (b.heuristicOpportunityScore ?? 0) - (a.heuristicOpportunityScore ?? 0);
   }
   if (a.hasBrokenPromise !== b.hasBrokenPromise) return a.hasBrokenPromise ? -1 : 1;
+  if ((a.priorityScore ?? 0) !== (b.priorityScore ?? 0)) return (b.priorityScore ?? 0) - (a.priorityScore ?? 0);
   if (a.outstandingPaise !== b.outstandingPaise) return b.outstandingPaise - a.outstandingPaise;
   if (a.daysOverdue !== b.daysOverdue) return b.daysOverdue - a.daysOverdue;
   if (a.contactAttempts !== b.contactAttempts) return a.contactAttempts - b.contactAttempts;
@@ -236,6 +274,7 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   const caseMap = new Map(cases.map((item) => [item.id, item]));
   const events: AuditEvent[] = [];
   const payments: SyntheticPaymentEvent[] = [];
+  const decisionEntries: DecisionCacheEntry[] = [];
   const dailyCapacity: DailyCapacityRecord[] = [];
   const paymentEvents = new Set<string>();
   const paymentIds = new Set<string>();
@@ -305,22 +344,31 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
     for (const c of cases) {
       const context = projectObservable(c, day);
       audit(c, day, "CASE_EVALUATED", "STRATEGY", "Observable case evaluated before portfolio capacity allocation.");
-      const decision = strategy.decide(context);
-      audit(c, day, "ACTION_PROPOSED", "STRATEGY", decision.reason, { action: decision.action, metadata: decision.metadata });
+      const inputHash = createHash("sha256").update(stableJson(context)).digest("hex");
+      const decision = strategy.decide(clone(context));
+      validateRecoveryDecision(decision);
+      const strategyVersion = decision.strategyVersion ?? `${strategy.name}-1.0.0`;
+      const inferenceMode = decision.inferenceMode ?? "DETERMINISTIC_KEYLESS";
+      const cacheKey = createHash("sha256").update(`${strategy.name}|${strategyVersion}|${inputHash}`).digest("hex");
+      decisionEntries.push({ cacheKey, inputHash, caseId: c.id, simulationDay: day, strategy: strategy.name, strategyVersion, inferenceMode, decision: clone(decision) });
+      audit(c, day, "ACTION_PROPOSED", "STRATEGY", decision.reason, { action: decision.action, metadata: { ...decision.metadata, confidence: decision.confidence, factors: decision.factors, strategyVersion, inferenceMode, decisionCacheKey: cacheKey } });
       const policy = evaluatePolicy(context, decision.action, config.policy);
       audit(c, day, policy.allowed ? "ACTION_ALLOWED" : "ACTION_BLOCKED", "POLICY", policy.reason, { action: policy.executedAction, metadata: { proposedAction: decision.action, rule: policy.rule } });
       const action = policy.executedAction;
       const capacityKind = CONTACTS.has(action) ? "CONTACT" : action === "ESCALATE_TO_HUMAN" ? "HUMAN_REVIEW" : undefined;
       if (!capacityKind) {
-        const policyProtected = !policy.allowed || TERMINAL.has(c.state) || c.promises.some((promise) => promise.status === "ACTIVE" && promise.dueDay >= day);
-        protectedDecisions++;
-        if (CONTACTS.has(decision.action) && action === "WAIT") protectedContactActions++;
+        const deliberateAvoidedContact = decision.action === "WAIT" && decision.metadata?.avoidsContact === true;
+        const policyProtected = !policy.allowed || deliberateAvoidedContact || TERMINAL.has(c.state) || c.promises.some((promise) => promise.status === "ACTIVE" && promise.dueDay >= day);
+        if (policyProtected) protectedDecisions++;
+        if ((CONTACTS.has(decision.action) && action === "WAIT") || deliberateAvoidedContact) protectedContactActions++;
         audit(c, day, "QUEUE_CLASSIFIED", "CAPACITY", policyProtected ? "WAIT / PROTECTED: no bounded capacity consumed." : "WAIT: strategy selected no intervention today.", { action: "WAIT", metadata: { queue: "WAIT_PROTECTED", policyProtected, proposedAction: decision.action, rule: policy.rule } });
         audit(c, day, "ACTION_EXECUTED", "POLICY", policy.reason, { action: "WAIT", metadata: { consumesCapacity: false } });
         if (action !== "WAIT") unboundedActions.push({ caseId: c.id, action, reason: policy.reason });
         continue;
       }
-      candidates.push({ caseId: c.id, action, capacityKind, outstandingPaise: c.outstandingPaise, daysOverdue: context.daysOverdue, hasBrokenPromise: c.promises.some((promise) => promise.status === "BROKEN"), contactAttempts: c.contactAttempts, heuristicOpportunityScore: typeof decision.metadata?.heuristicOpportunityScore === "number" ? decision.metadata.heuristicOpportunityScore : undefined });
+      const priorityScore = typeof decision.metadata?.priorityScore === "number" && Number.isFinite(decision.metadata.priorityScore) ? decision.metadata.priorityScore : undefined;
+      const heuristicOpportunityScore = typeof decision.metadata?.heuristicOpportunityScore === "number" && Number.isFinite(decision.metadata.heuristicOpportunityScore) ? decision.metadata.heuristicOpportunityScore : undefined;
+      candidates.push({ caseId: c.id, action, capacityKind, outstandingPaise: c.outstandingPaise, daysOverdue: context.daysOverdue, hasBrokenPromise: c.promises.some((promise) => promise.status === "BROKEN"), contactAttempts: c.contactAttempts, heuristicOpportunityScore, priorityScore });
       audit(c, day, "QUEUE_CLASSIFIED", "CAPACITY", `ACT NOW candidate requires ${capacityKind === "CONTACT" ? "contact" : "human-review"} capacity.`, { action, metadata: { queue: "ACT_NOW", capacityKind, proposedAction: decision.action, rule: policy.rule } });
     }
 
@@ -333,7 +381,7 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
     dailyCapacity.push({ simulationDay: day, contactBudget: config.capacity.dailyContactLimit, contactConsumed: contactSelected.length, contactDeferredEligible: contactDeferred.length, humanReviewBudget: config.capacity.dailyHumanReviewLimit, humanReviewConsumed: reviewSelected.length, humanReviewDeferredEligible: reviewDeferred.length, protectedDecisions, protectedContactActions });
     for (const item of allocation.selected) {
       const c = caseMap.get(item.caseId)!;
-      audit(c, day, "CAPACITY_SELECTED", "CAPACITY", `${item.capacityKind === "CONTACT" ? "Contact" : "Human-review"} work selected within the daily budget.`, { action: item.action, metadata: { capacityKind: item.capacityKind, queue: "ACT_NOW", tieBreaker: c.id } });
+      audit(c, day, "CAPACITY_SELECTED", "CAPACITY", `${item.capacityKind === "CONTACT" ? "Contact" : "Human-review"} work selected within the daily budget.`, { action: item.action, metadata: { capacityKind: item.capacityKind, queue: "ACT_NOW", priorityScore: item.priorityScore, tieBreaker: c.id } });
     }
     for (const item of allocation.deferred) {
       const c = caseMap.get(item.caseId)!;
@@ -394,7 +442,10 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   for (const c of cases) {
     if (c.outstandingPaise < 0 || c.recoveredPaise + c.outstandingPaise !== c.originalAmountPaise) throw new Error(`Monetary invariant failed for ${c.id}`);
   }
-  return { runId, config, initialPortfolio, hiddenState: generated.hidden, potentialOutcomeBankHash: bank.sha256, finalCases: cases, auditEvents: events, payments, dailyCapacity, metrics: calculateMetrics(initialPortfolio, cases, events, dailyCapacity) };
+  const decisionCacheBase = { schemaVersion: "1.0.0" as const, evidenceLabel: "MEASURED_STRATEGY_DECISIONS" as const, entries: decisionEntries };
+  const decisionCache = { ...decisionCacheBase, sha256: createHash("sha256").update(stableJson(decisionCacheBase)).digest("hex") };
+  validateDecisionCache(decisionCache);
+  return { runId, config, initialPortfolio, hiddenState: generated.hidden, potentialOutcomeBankHash: bank.sha256, decisionCache, finalCases: cases, auditEvents: events, payments, dailyCapacity, metrics: calculateMetrics(initialPortfolio, cases, events, dailyCapacity) };
 }
 
 export function compareStrategies(input: SimulationConfigInput = {}, names: StrategyName[] = STRATEGY_NAMES, recoupManifest?: DecisionManifest): StrategyComparison {
@@ -412,6 +463,19 @@ export function compareStrategies(input: SimulationConfigInput = {}, names: Stra
   const bankHashesIdentical = results.every((result) => result.potentialOutcomeBankHash === bank.sha256);
   const commonInputsIdentical = results.every((result) => stableJson(normalizeEnvironmentConfig(result.config)) === stableJson(commonConfig));
   const caseMoneyReconciled = results.every((result) => result.metrics.reconciliation.valid && result.finalCases.every((c) => c.outstandingPaise + c.recoveredPaise === c.originalAmountPaise));
+  const nativeBaseline = results.find((result) => result.config.strategy === "razorpay-native-reminders");
+  const comparativeMetrics = nativeBaseline ? {
+    evidenceLabel: "SIMULATED_DIFFERENCE_NOT_CAUSAL_UPLIFT" as const,
+    baseline: nativeBaseline.config.strategy,
+    deltas: results.map((result) => ({
+      strategy: result.config.strategy,
+      baseline: nativeBaseline.config.strategy,
+      simulatedIncrementalRecoveryPaise: result.metrics.recovery.totalRecoveredPaise - nativeBaseline.metrics.recovery.totalRecoveredPaise,
+      recoveryRatePointDifference: (result.metrics.recovery.recoveryRate - nativeBaseline.metrics.recovery.recoveryRate) * 100,
+      additionalContacts: result.metrics.capacity.contactConsumed - nativeBaseline.metrics.capacity.contactConsumed,
+      additionalHumanReviews: result.metrics.capacity.humanReviewConsumed - nativeBaseline.metrics.capacity.humanReviewConsumed,
+    })),
+  } : null;
   return {
     comparisonId,
     evidenceLabel: "SYNTHETIC_STRATEGY_COMPARISON",
@@ -421,6 +485,7 @@ export function compareStrategies(input: SimulationConfigInput = {}, names: Stra
     scenarioManifest: scenarioManifest(first.scenario),
     potentialOutcomeBank: bank,
     potentialOutcomeBankHash: bank.sha256,
+    comparativeMetrics,
     reconciliation: { valid: initialPortfoliosIdentical && hiddenStatesIdentical && bankHashesIdentical && commonInputsIdentical && caseMoneyReconciled, initialPortfoliosIdentical, hiddenStatesIdentical, bankHashesIdentical, commonInputsIdentical, caseMoneyReconciled },
     results,
   };
