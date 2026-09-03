@@ -1,6 +1,13 @@
 # Recoup — Razorpay Receivables Recovery Spike
 
-Milestones 1 and 7 prove a verified recovery loop: a local overdue invoice becomes a partial-enabled Razorpay Test Mode Payment Link, signed partial/full payment webhooks advance the balance monotonically, and the application-owned recovery case becomes `PARTIALLY_PAID` or `RECOVERED` exactly once per payment.
+Milestones 1–7 are complete. They prove a verified recovery loop: a local overdue invoice becomes a partial-enabled Razorpay Test Mode Payment Link, signed partial/full payment webhooks advance the balance monotonically, and the application-owned recovery case becomes `PARTIALLY_PAID` or `RECOVERED` exactly once per payment.
+
+Two planned milestones remain:
+
+1. **Milestone 8 — Live AI commitment interpreter and recovery handoff:** use OpenRouter with a pinned structured-output-capable model to interpret an ambiguous English/Hinglish response, pass the proposal through deterministic policy and human approval, collect a verified Test Mode partial payment, protect the authoritative remainder promise, and reallocate the released operational contact slot.
+2. **Milestone 9 — Judge-facing hardening:** unify Decision Replay and the Evidence Lab with the existing Command Center, add provenance and limitations, provide deterministic reset and fallbacks, and rehearse the three-minute demo.
+
+The next milestone deliberately keeps `recoup-hybrid` as the deterministic, reproducible Recovery Frontier strategy. Live model inference is introduced for unstructured customer-response interpretation, where AI changes a bounded recovery decision and remains visibly subordinate to policy, approval, and verified Razorpay webhooks.
 
 ## What is included
 
@@ -20,9 +27,9 @@ The root workspace now opens the Milestone 6 Recovery Command Center. The origin
 Run a reproducible synthetic benchmark:
 
 ```bash
-bun run simulate --cases 1000 --days 30 --seed 42
+bun run simulate --cases 1000 --days 30 --evaluation-set custom --seed 42
 # Inspect one complete journey:
-bun run simulate --cases 100 --days 30 --seed 42 --case sim-case-000001
+bun run simulate --cases 100 --days 30 --evaluation-set custom --seed 42 --case sim-case-000001
 # Run the Razorpay-native baseline with explicit daily budgets:
 bun run simulate --strategy razorpay-native-reminders --contact-capacity 25 --review-capacity 5
 # Run the keyless Recoup hybrid strategy:
@@ -82,7 +89,9 @@ Named development/held-out comparisons run every declared seed and write a suite
 
 `contactCostMultiplier` is now an auditable synthetic relationship-burden metric (never subtracted from recovered money). The relationship-sensitive scenario applies an additional disclosed multiplier to observable long-history accounts.
 
-`recoup-agent` is replay-only in the pure simulator. A separate server-side preparation workflow calls OpenAI Responses with strict JSON Schema and shared Zod validation, then freezes context hashes, prompt/schema versions, provider/model IDs, validated decisions, and a manifest hash. Replay makes no model calls; a missing or mismatched record is an explicit cache miss. The model receives only observable text/context as untrusted data, has no tools, and never sees profiles, outcome banks, future results, or payment truth. Deterministic policy and capacity allocation own final actions.
+`recoup-agent` is replay-only in the pure simulator. The existing direct OpenAI Responses adapter is an unwired preparation boundary, not a live product integration. Milestone 8 will add a server-side OpenRouter adapter using pinned `openai/gpt-5-mini`, the documented strict JSON Schema response format, compatible-provider routing, and shared Zod/business validation. It will freeze context hashes, prompt/schema versions, provider/model IDs, validated decisions, and a manifest hash when preparing evaluation decisions. Replay makes no model calls; a missing or mismatched record is an explicit cache miss. The model receives only observable text/context as untrusted data, has no tools, and never sees profiles, outcome banks, future results, or payment truth. Deterministic policy, human approval, and capacity allocation own final actions.
+
+OpenRouter references: [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection), [`openai/gpt-5-mini`](https://openrouter.ai/openai/gpt-5-mini), and [zero data retention](https://openrouter.ai/docs/guides/features/zdr).
 
 ### Recovery Command Center (Milestone 6)
 
@@ -106,6 +115,8 @@ Both `payment_link.partially_paid` and `payment_link.paid` are accepted only aft
 
 Requirements: Bun 1.3+, Docker Desktop, a Razorpay account with Test Mode API keys, and [zrok](https://docs.zrok.io/docs/getting-started/).
 
+Milestone 8 additionally requires an OpenRouter API key with available credit and access to the pinned structured-output-capable model. No separate OpenAI key is required for the planned live adapter.
+
 ```bash
 bun install
 docker compose up -d
@@ -123,6 +134,8 @@ APP_URL=https://your-public-zrok-url.example
 RAZORPAY_KEY_ID=rzp_test_replace_me
 RAZORPAY_KEY_SECRET=replace_me
 RAZORPAY_WEBHOOK_SECRET=replace_me
+OPENROUTER_API_KEY=replace_me
+OPENROUTER_RECOUP_MODEL=openai/gpt-5-mini
 ```
 
 Only a key beginning with `rzp_test_` is accepted. Never put real credentials in `.env.example` or commit `.env.local`.
@@ -164,12 +177,12 @@ bun run build           # production build
 bun run lint            # ESLint
 bun run typecheck       # TypeScript without emit
 bun test                # unit tests
-bun run simulate --cases 1000 --days 30 --seed 42
+bun run simulate --cases 1000 --days 30 --evaluation-set custom --seed 42
 bun run simulate --strategy recoup-hybrid --contact-capacity 25 --review-capacity 5
 bun run simulate --strategy finance-age-bucket --contact-capacity 25 --review-capacity 5
 bun run simulate --strategy razorpay-native-reminders --contact-capacity 25 --review-capacity 5
 bun run simulate --strategy no-intervention --contact-capacity 25 --review-capacity 5
-bun run simulate --compare --cases 1000 --days 30 --seed 42 --contact-capacity 25 --review-capacity 5
+bun run simulate --compare --cases 1000 --days 30 --evaluation-set custom --seed 42 --contact-capacity 25 --review-capacity 5
 bun run db:generate     # generate a migration from the schema
 bun run db:migrate      # apply migrations
 bun run db:seed         # idempotently create the operational demo fixtures

@@ -1,6 +1,6 @@
 # Recoup: Research-Informed Winning Plan
 
-Last revised: 2026-08-30
+Last revised: 2026-09-03
 
 Status: Canonical product and demo plan
 
@@ -155,13 +155,22 @@ The agent creates a structured proposal:
 {
   "intent": "PARTIAL_PAYMENT_AND_PROMISE",
   "pay_now_paise": 4000000,
-  "promised_amount_paise": 6000000,
+  "promise_amount_mode": "REMAINDER",
+  "explicit_promised_amount_paise": null,
   "promised_date": "2026-09-04",
-  "possible_dispute": true,
+  "invoice_verification_requested": true,
+  "dispute_signal": "POSSIBLE",
   "confidence": 0.91,
-  "proposed_action": "OFFER_PARTIAL_PAYMENT"
+  "proposed_action": "OFFER_PARTIAL_PAYMENT",
+  "evidence": [
+    { "field": "pay_now_paise", "quote": "₹40,000 aaj" },
+    { "field": "promised_date", "quote": "balance Friday" },
+    { "field": "invoice_verification_requested", "quote": "Invoice amount bhi please verify kar dena" }
+  ]
 }
 ~~~
+
+The operational fixture `INV-003` is ₹75,000. The model may identify that the customer offered ₹40,000 and promised the remainder, but it must not calculate or assert the authoritative remainder. After a verified ₹40,000 webhook, deterministic application arithmetic establishes the remaining promise as ₹35,000.
 
 The demo sequence is:
 
@@ -205,6 +214,30 @@ AI must not:
 - use hidden simulator traits.
 
 The first batch agent can use cached, schema-validated model decisions for reproducibility. The live case should call the model directly and show validation and policy gating.
+
+### Live model contract
+
+Milestone 8 should use OpenRouter with the pinned `openai/gpt-5-mini` model. OpenRouter documents JSON Schema structured outputs for this model. Send requests through the documented Chat Completions `response_format` contract with `strict: true`, `additionalProperties: false`, and provider routing configured with `require_parameters: true`. Prefer `data_collection: "deny"` and `zdr: true` when an eligible route is available.
+
+The model receives only a canonical server-built snapshot of observable case facts, the message timestamp, the `Asia/Kolkata` business timezone, and the untrusted customer message/collection note. It receives no tools, credentials, hidden simulator state, potential outcomes, future events, or authority to mutate application state.
+
+Every response must pass both JSON Schema/Zod validation and deterministic business invariants:
+
+- money is positive integer paise and cannot exceed authoritative outstanding;
+- relative dates resolve from the supplied message timestamp and timezone;
+- quoted evidence must be an exact substring of an input field;
+- a remainder is calculated only from verified application state;
+- dispute, ambiguity, partial-payment, concession, and high-value cases require human approval; and
+- the action allowlist cannot express payment success, credit approval, refunds, capture, settlement, or arbitrary tool execution.
+
+Malformed output, refusal, timeout, rate limiting, or provider failure must fail closed into manual review. At most one bounded retry is allowed for a transient failure. The demo fallback is a pre-generated, schema-validated decision labelled **CACHED MODEL REPLAY**, never a live-model claim.
+
+Official model and API references:
+
+- [OpenRouter structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs)
+- [OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)
+- [OpenRouter GPT-5 Mini](https://openrouter.ai/openai/gpt-5-mini)
+- [OpenRouter zero data retention](https://openrouter.ai/docs/guides/features/zdr)
 
 ## 8. Deterministic system responsibilities
 
@@ -509,26 +542,42 @@ Already present:
 
 **Done when:** one real Test Mode partial payment reduces the correct case balance exactly once.
 
-### Milestone 8 — Commitment-aware recovery
+### Milestone 8 — Live AI commitment interpreter and recovery handoff
 
-- Parse the live ambiguous English/Hinglish response.
-- Store a dated, amount-specific promise and possible dispute.
-- Gate the selected concession or ambiguity through human approval.
-- Protect the promise through its due date.
-- Reallocate the freed contact slot.
-- Re-evaluate full, partial, and broken commitments.
+This is the first major, unmistakably AI-focused product milestone. It must show that the model changes a recovery decision, not merely generate copy.
 
-**Done when:** the live replay explains both the customer-level recovery and the portfolio-level capacity change.
+- Add a server-side OpenRouter adapter using pinned `openai/gpt-5-mini`, strict structured output, compatible-provider routing, timeouts, typed failures, and local schema/invariant validation.
+- Parse the live ambiguous English/Hinglish response into intent, ₹40,000 proposed now, a dated remainder promise, invoice-verification ambiguity, a bounded proposed action, and exact supporting evidence spans.
+- Persist the customer message, canonical input hash, prompt/schema/provider/model versions, validated output or failure, policy evaluation, human decision, promise, and append-only audit events.
+- Make partial-payment, dispute/ambiguity, high-value, low-confidence, and conflicting-field proposals require explicit human approval. Preserve the original proposal when a reviewer overrides it.
+- Create or reuse the existing partial-enabled Razorpay Standard Payment Link only after the proposal is policy-eligible and approved.
+- Keep the promise pending until the partial payment is verified. After the signed ₹40,000 Test Mode webhook, derive the authoritative ₹35,000 remainder, activate promise protection, and retain webhook idempotency and monotonic accounting.
+- Add a small operational Test Mode queue using the seeded recovery cases. Move `INV-003` to WAIT / PROTECTED and deterministically promote the next eligible case when its contact slot is released.
+- Keep this operational queue visually and metrically separate from the synthetic Recovery Frontier; a live webhook must not rewrite or masquerade as a synthetic benchmark result.
+- Add a frozen, manually reviewed English/Hinglish corpus with amount/date/dispute/injection cases. Compare the model with a deterministic keyword/regex parser using intent, amount, date, dispute recall, evidence grounding, schema failures, and post-policy unsafe-action rate.
+- Freeze evaluated model outputs by context, prompt, schema, provider, and model hash before any paired synthetic downstream comparison. Continue to label downstream recovery differences as simulated, not causal uplift.
+- Add a clearly labelled cached-model replay for demo resilience.
+
+**Done when:** a judge can watch unstructured customer text change the bounded recovery plan, see deterministic policy demand approval, complete a verified Razorpay Test Mode partial payment, observe the exact ₹75,000 → ₹35,000 balance transition once, see the remaining promise protected and the operational contact slot reallocated, and replay every step with provenance.
 
 ### Milestone 9 — Judge-facing workspace
 
-- Build Command Center, Decision Replay, and Evidence Lab only.
+- Unify the existing Command Center, the new operational Decision Replay, and Evidence Lab without adding separate role-based portals.
 - Add provenance badges, metric definitions, and limitations.
 - Add deterministic demo reset and seeded scenarios.
-- Add a tested live-payment fixture and recorded fallback.
+- Harden the tested live-payment fixture, cached-model replay, and recorded fallback.
 - Rehearse the three-minute flow and skeptical judge questions.
 
 **Done when:** the complete story remains coherent even if the external payment step fails.
+
+### Remaining roadmap after Milestone 7
+
+Two milestones remain:
+
+1. **Milestone 8:** build the live AI commitment interpreter and bounded recovery handoff.
+2. **Milestone 9:** consolidate, label, reset, harden, and rehearse the judge-facing experience.
+
+Model-driven batch ranking, autonomous concessions, generated outbound messaging, production communication channels, calibrated risk/uplift scores, natural-language policy compilation, cross-product Razorpay adapters, document verification, and autonomous multi-agent negotiation are explicitly deferred until after the hackathon core is complete.
 
 ## 15. Scope decisions
 
@@ -579,28 +628,29 @@ Recommendation: BUILD
 Reason: It is central, differentiated, visibly measurable, feasible on the current foundation, and honest when presented as paired synthetic evidence plus verified Test Mode integration.
 ~~~
 
-### Supporting: promise-centric recovery
+### Next build: live AI commitment interpreter and recovery handoff
 
 ~~~yaml
-Feature: AI promise-to-pay and partial-payment workflow
+Feature: Live AI commitment interpreter and recovery handoff
 Track relevance: CORE
-Expected revenue impact: Converts ambiguous responses into dated commitments, enables immediate partial collection, suppresses wasteful contact, and reactivates broken promises.
-How impact can be measured: Partial/full recovery, promise fulfillment, contacts avoided, broken-promise reactivation, and verified Test Mode collection.
-Baseline: Fixed reminders with no interpretation of unstructured commitment.
+Expected revenue impact: Converts an ambiguous response into an actionable partial-payment path, protects the remaining commitment, and reallocates scarce contact capacity instead of sending another generic reminder.
+How impact can be measured: Compare frozen model interpretations with a deterministic parser under the same policy, contact budget, and paired synthetic outcome bank; separately demonstrate collection with a verified Razorpay Test Mode webhook.
+Baseline: Razorpay-native Payment Link reminders plus a deterministic keyword/date parser and the fixed finance SOP.
 Evidence:
-  Razorpay Test Mode: Proves partial/full Link payment and financial state.
-  Synthetic receivables: Supply account and aging context.
-  Simulated customer behavior: Supplies promise and dispute responses outside the live case.
-  Measured agent outcomes: Extracted intent, proposal, policy decision, and queue reallocation.
-  Assumptions: Promise reliability and the effect of protecting or following up commitments.
-Razorpay overlap: Razorpay accepts partial payments but does not supply the documented business-context promise workflow used here.
+  Razorpay Test Mode: Proves hosted partial collection, signed event processing, stable correlation, idempotency, and balance reconciliation; it does not prove real revenue uplift.
+  Synthetic receivables: Supply the reviewed bilingual interpretation corpus and comparable receivable contexts.
+  Simulated customer behavior: Supplies frozen downstream outcomes for incremental-recovery comparison.
+  Measured agent outcomes: Supply structured interpretations, grounded evidence, proposals, policy decisions, approval outcomes, and queue changes.
+  Assumptions: Customer-response effects, promise reliability, payment propensity, attribution window, and contact cost remain disclosed synthetic assumptions.
+Razorpay overlap: Razorpay supplies Payment Links, partial payments, hosted Checkout, reminders, and payment webhooks; Recoup supplies unstructured-response interpretation, policy gating, approval, promise protection, capacity reallocation, and evidence replay.
 Demo value: HIGH
 Evaluation risks:
-  - Promise-to-pay is already an example hackathon direction.
-  - One scripted live response can appear cherry-picked.
-Likely judge challenge: Is this more than extracting a date and generating a Payment Link?
-Recommendation: MODIFY
-Reason: Build it as the live proof and a capacity-reallocation input, not as the entire product thesis.
+  - A single polished message may look scripted or cherry-picked.
+  - Synthetic downstream outcomes cannot establish real causal uplift.
+  - Incorrect dispute or amount extraction could cause unsafe outreach without fail-closed policy.
+Likely judge challenge: Is AI actually changing the recovery decision, or merely extracting fields before a workflow that rules could already execute?
+Recommendation: BUILD
+Reason: It is the narrowest milestone that makes AI necessary, visible, bounded, measurable against a credible parser baseline, and connected end-to-end to verified Razorpay Test Mode collection.
 ~~~
 
 ### Future: broad cross-product recovery control plane
