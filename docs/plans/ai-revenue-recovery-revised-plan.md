@@ -574,15 +574,26 @@ Milestone 9 was completed on 2026-09-03. A shared four-step journey now connects
 
 The operational demo reset is a narrow transaction over only `rc_m1_inv_001`, `rc_m1_inv_002`, and `rc_m7_inv_003`. A transaction-local database flag permits deletion from otherwise immutable demo history only for those IDs; unrelated operational records, schema, and external Razorpay Test Mode objects remain untouched. Development enables the reset; a production-mode demo requires explicit `DEMO_RESET_ENABLED=true`.
 
+### Milestone 10 — AWS deployment and hosted proof — PLANNED
+
+- Define a cost-conscious AWS architecture as infrastructure as code: ECR, ECS on Fargate, an HTTPS Application Load Balancer, RDS PostgreSQL, managed secrets, CloudWatch observability, and narrowly scoped IAM.
+- Deploy the current application without changing its bounded recovery, accounting, policy, or evidence semantics.
+- Run schema migrations as a controlled one-off task, verify persistence across service replacement, exercise health checks and scaling configuration, and document rollback and teardown.
+- Keep demo reset off by default in production and explicitly protect any hackathon-only enablement.
+- Use the stable AWS HTTPS webhook for the user-assisted ₹40,000 Razorpay Test Mode acceptance run and retain correlated application, Razorpay, and CloudWatch evidence.
+- Add a concise architecture diagram and judge-facing deployment evidence. Treat AWS as operational-readiness and scalability evidence, not causal recovery evidence.
+
+**Done when:** the stack can be reproducibly provisioned, deployed, updated, observed, rolled back, and removed; the public judge journey passes; data persists across a web-service redeploy; secrets remain server-side; and the signed hosted Test Mode webhook advances `INV-003` exactly once.
+
 ### Remaining roadmap after Milestone 9
 
 Milestone 8 implementation was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. Milestone 9 then consolidated and hardened that work without adding product breadth.
 
-The remaining acceptance work is tracked in [Todo.md](../../Todo.md). The hosted ₹40,000 Razorpay Checkout-to-public-webhook run was not completed; only authenticated read-only Test Mode access and the signed-payload local integration path were exercised. The single ZDR-preferred smoke again found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback. The application persists and displays that fallback posture rather than implying ZDR.
+The remaining deployment and acceptance work is tracked in [Todo.md](../../Todo.md). The current system has not yet been deployed to AWS. The hosted ₹40,000 Razorpay Checkout-to-public-webhook run was not completed; only authenticated read-only Test Mode access and the signed-payload local integration path were exercised. The single ZDR-preferred smoke again found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback. The application persists and displays that fallback posture rather than implying ZDR.
 
 The final `commitment-prompt-v1.0.3` corpus artifact records all 12 outcomes explicitly. Of 11 provider-eligible cases, 9 validated; intent accuracy was 72.7%; pay-now amount, promised amount, date, and evidence grounding were each 81.8%; dispute recall was 100%. The injection case was blocked preflight without a provider call. Provider and schema failures were zero. `english-full-today` and `malformed` failed deterministic invariants with `PROMISE_FIELDS_CONFLICT`, and post-policy unsafe action rate remained 0%. These are measured model decisions on synthetic messages, not merchant recovery evidence.
 
-No product milestone remains for the hackathon scope. The user-assisted hosted Test Mode acceptance is the only outstanding proof.
+No core recovery-product milestone remains. Milestone 10 is a supporting deployment and operational-readiness milestone, followed by the user-assisted hosted Test Mode acceptance proof.
 
 Final verification on 2026-09-03 passed lint, typecheck, 55 non-database tests, six disposable-database integration tests, one Chromium judge-journey test, and the production build. Desktop and narrow responsive views of the Command Center, Decision Replay, cached provenance, and recorded fallback were visually inspected. The final local fixture state was reset after inspection.
 
