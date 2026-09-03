@@ -1,0 +1,328 @@
+{
+  "evidence": "MEASURED MODEL DECISIONS ON SYNTHETIC MANUALLY REVIEWED CORPUS",
+  "generatedAt": "2026-09-03T16:18:37.644Z",
+  "corpusVersion": "english-hinglish-v1.0.0",
+  "versions": {
+    "prompt": "commitment-prompt-v1.0.1",
+    "schema": "commitment-v1.0.0",
+    "provider": "openrouter-private-routing-v1",
+    "model": "openai/gpt-5-mini"
+  },
+  "baseline": {
+    "total": 12,
+    "intentAccuracy": 0.3333333333333333,
+    "amountExactness": 0.5833333333333334,
+    "dateExactness": 0.25,
+    "disputeRecall": 0,
+    "evidenceGroundingRate": 0.75,
+    "schemaFailureRate": 0.25,
+    "postPolicyUnsafeActionRate": 0
+  },
+  "model": {
+    "total": 12,
+    "intentAccuracy": 0.6666666666666666,
+    "amountExactness": 0.6666666666666666,
+    "dateExactness": 0.6666666666666666,
+    "disputeRecall": 0.6666666666666666,
+    "evidenceGroundingRate": 0.6666666666666666,
+    "schemaFailureRate": 0.3333333333333333,
+    "postPolicyUnsafeActionRate": 0
+  },
+  "frozen": [
+    {
+      "caseId": "mixed-partial-remainder",
+      "output": {
+        "intent": "PARTIAL_PAYMENT_AND_PROMISE",
+        "pay_now_paise": 4000000,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-04",
+        "invoice_verification_requested": true,
+        "dispute_signal": "POSSIBLE",
+        "confidence": 0.91,
+        "proposed_action": "OFFER_PARTIAL_PAYMENT",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "40,000",
+            "start": 6,
+            "end": 12
+          },
+          {
+            "field": "promised_date",
+            "quote": "Friday",
+            "start": 24,
+            "end": 30
+          },
+          {
+            "field": "invoice_verification_requested",
+            "quote": "invoice amount bhi please verify kar dena",
+            "start": 32,
+            "end": 63
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "invoice amount bhi please verify kar dena",
+            "start": 32,
+            "end": 63
+          }
+        ]
+      },
+      "contextHash": "c5aa2ab76508f8bb2bbf74afb132d6ea9935b82a55899e69a4225f661e72a86f",
+      "outputHash": "6c76fadf9fb7da5fc5dd3243fe81bcf15a1a65b4ececbfe2ae5a744f3052db27"
+    },
+    {
+      "caseId": "english-full-today",
+      "output": {
+        "intent": "PAY_NOW",
+        "pay_now_paise": 7500000,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.86,
+        "proposed_action": "SEND_PAYMENT_LINK",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "75,000",
+            "start": 0,
+            "end": 26
+          }
+        ]
+      },
+      "contextHash": "003fed68f17504cff27e604f163b30a00eb3fc783c034b1fbf8feac7f11bc0a9",
+      "outputHash": "c510c0d09cfc9cce0f0680244fa05c0cec8c7e092e26a0be93a1e95a89249857"
+    },
+    {
+      "caseId": "hinglish-tomorrow",
+      "output": {
+        "intent": "PROMISE_TO_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-04",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.67,
+        "proposed_action": "SEND_PAYMENT_LINK",
+        "evidence": [
+          {
+            "field": "intent",
+            "quote": "Kal payment kar denge, abhi link bhej do.",
+            "start": 0,
+            "end": 36
+          },
+          {
+            "field": "promised_date",
+            "quote": "Kal",
+            "start": 0,
+            "end": 3
+          },
+          {
+            "field": "proposed_action",
+            "quote": "link bhej do",
+            "start": 22,
+            "end": 33
+          }
+        ]
+      },
+      "contextHash": "c88d37cd66b7f70e4fcdc88835d2cd82ff4f1d6a3879c4c8ff20fea05d7ba0ab",
+      "outputHash": "bebb0c055207587f1abd96f0f0851061b8e63b47867edb5705243d39fdd1f51e"
+    },
+    {
+      "caseId": "explicit-dispute",
+      "output": {
+        "intent": "DISPUTE_OR_VERIFY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": true,
+        "dispute_signal": "EXPLICIT",
+        "confidence": 0.87,
+        "proposed_action": "ESCALATE_DISPUTE",
+        "evidence": [
+          {
+            "field": "invoice_verification_requested",
+            "quote": "This invoice is wrong.",
+            "start": 0,
+            "end": 22
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "We dispute the freight line and will not pay it.",
+            "start": 23,
+            "end": 65
+          }
+        ]
+      },
+      "contextHash": "cc2f05826a794e506b552166240efbd963a5b786277877615008d84b6ee01a3b",
+      "outputHash": "9c0cc7fcc7343f0d5dd8b73d66214c0669c940114f96b2be9ddffb52b497a901"
+    },
+    {
+      "caseId": "negated-payment",
+      "output": {
+        "intent": "CANNOT_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.9,
+        "proposed_action": "FOLLOW_UP_BROKEN_PROMISE",
+        "evidence": [
+          {
+            "field": "intent",
+            "quote": "We cannot pay ₹40,000 today. Please do not send another link.",
+            "start": 0,
+            "end": 57
+          }
+        ]
+      },
+      "contextHash": "9c8db20ab734b5007ffa453a5c1594c83bc541c35ff48694d66b878641db2442",
+      "outputHash": "218b2d0ca9a372b84b4258658e63bfea94b4b5b4a5d92340b6a86a73933bd642"
+    },
+    {
+      "caseId": "correction",
+      "output": {
+        "intent": "PARTIAL_PAYMENT_AND_PROMISE",
+        "pay_now_paise": 3000000,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-07",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.83,
+        "proposed_action": "OFFER_PARTIAL_PAYMENT",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "30,000",
+            "start": 27,
+            "end": 33
+          },
+          {
+            "field": "promised_date",
+            "quote": "Monday",
+            "start": 52,
+            "end": 58
+          },
+          {
+            "field": "intent",
+            "quote": "Not ₹40,000 — correction: ₹30,000 today and the rest Monday.",
+            "start": 0,
+            "end": 58
+          }
+        ]
+      },
+      "contextHash": "21c7e30686dee733019e46f0e88ecbdac8b50bc91202e71899b0bfea0bc9e1ca",
+      "outputHash": "b27213f285509474d22623520e0e7436562ee78fce786c6c9713c8df8707a389"
+    },
+    {
+      "caseId": "explicit-date",
+      "output": {
+        "intent": "PROMISE_TO_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-10",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.82,
+        "proposed_action": "FOLLOW_UP_BROKEN_PROMISE",
+        "evidence": [
+          {
+            "field": "promised_date",
+            "quote": "10 September 2026.",
+            "start": 33,
+            "end": 52
+          }
+        ]
+      },
+      "contextHash": "b4885df88c2fd026c71c0e818969c18b2ea8bae26530ca8d5af3f63fb131bb42",
+      "outputHash": "9e3e1cce6b3239552a4ef04fc772f50c1e8a874ad92539371ea19daf74a968ec"
+    },
+    {
+      "caseId": "ambiguous-friday",
+      "output": {
+        "intent": "PROMISE_TO_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.56,
+        "proposed_action": "REQUEST_PAYMENT_COMMITMENT",
+        "evidence": [
+          {
+            "field": "intent",
+            "quote": "Balance Friday karenge.",
+            "start": 0,
+            "end": 22
+          }
+        ]
+      },
+      "contextHash": "443f86453828bb8449fb1a577fab49c79cc20e65e3d5841b0dde15926979b3b4",
+      "outputHash": "6f2a5414ed81af1e08f2db670d36f4d98894424459bf60cbbd8cb22ab13058de"
+    },
+    {
+      "caseId": "malformed",
+      "output": {
+        "intent": "UNCLEAR",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.17,
+        "proposed_action": "REQUEST_PAYMENT_COMMITMENT",
+        "evidence": []
+      },
+      "contextHash": "7db70dc6071214019254e989e274014f59bce84f72e3d535813394403ba53d0f",
+      "outputHash": "3c2106001a7a12350d6b0fe161ac7839975ea3dfe594c0471beb975c684c9fb5"
+    },
+    {
+      "caseId": "verification-only",
+      "output": {
+        "intent": "DISPUTE_OR_VERIFY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": true,
+        "dispute_signal": "POSSIBLE",
+        "confidence": 0.86,
+        "proposed_action": "VERIFY_PAYMENT_STATE",
+        "evidence": [
+          {
+            "field": "invoice_verification_requested",
+            "quote": "invoice copy dobara bhejo.",
+            "start": 33,
+            "end": 59
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "Amount confirm kar do please;",
+            "start": 0,
+            "end": 27
+          }
+        ]
+      },
+      "contextHash": "257f3165e79d75dec5ec579d70089c46de3f30c32107bf1b4459a75ed16fc7a3",
+      "outputHash": "a39019e9118bfe38a2049522b6a8a09fc8c754fcd54119e835c3c5e3d496d5aa"
+    },
+    {
+      "caseId": "two-amounts",
+      "output": {
+        "failure": "OpenRouterError"
+      },
+      "contextHash": "d56bbe80475de129230b1117c36da69f67281b7d0c16207de6b0c7fad42b24a8",
+      "outputHash": "0bd553746d1ea180e53d868b1cbc7b0070de11aa4493d9808571df239215479a"
+    }
+  ]
+}

@@ -10,7 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "simulate": "bun run src/simulation/cli.ts",
-    "test:integration": "bun test tests/webhook.integration.test.ts",
+    "evaluate:commitments": "bun run src/evaluation/cli.ts",
+    "smoke:openrouter": "bun run src/evaluation/openrouter-smoke.ts",
+    "smoke:razorpay": "bun run src/evaluation/razorpay-smoke.ts",
+    "test:integration": "bun test tests/*.integration.test.ts",
+    "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "bun run src/db/seed.ts"
@@ -25,6 +29,7 @@
     "zod": "^4.5.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/bun": "^1.4.0",
     "@types/node": "^26.4.0",

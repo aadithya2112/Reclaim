@@ -17,6 +17,8 @@ await db
       amountDue: 5_000_000,
       amountRecovered: 0,
       status: "OPEN",
+      operationalQueueStatus: "DEFERRED_CAPACITY",
+      queuePriority: 80,
     },
     {
       id: "rc_m1_inv_002",
@@ -29,6 +31,8 @@ await db
       amountDue: 5_000_000,
       amountRecovered: 0,
       status: "OPEN",
+      operationalQueueStatus: "DEFERRED_CAPACITY",
+      queuePriority: 70,
     },
     {
       id: "rc_m7_inv_003",
@@ -41,6 +45,8 @@ await db
       amountDue: 7_500_000,
       amountRecovered: 0,
       status: "OPEN",
+      operationalQueueStatus: "ACT_NOW",
+      queuePriority: 100,
     },
   ])
   .onConflictDoNothing({ target: recoveryCases.id });

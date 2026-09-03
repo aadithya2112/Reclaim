@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { closeDb, getDb } from "@/db";
 import { payments, recoveryCases } from "@/db/schema";
 import { POST } from "@/app/api/webhooks/razorpay/route";
@@ -84,8 +84,7 @@ integration("Razorpay webhook database transaction", () => {
     process.env.RAZORPAY_WEBHOOK_SECRET = "integration-webhook-secret";
 
     const db = getDb();
-    await db.delete(payments).where(eq(payments.recoveryCaseId, caseId));
-    await db.delete(recoveryCases).where(eq(recoveryCases.id, caseId));
+    await db.execute(sql`TRUNCATE TABLE operational_audit_events, human_approvals, policy_evaluations, promises, recovery_proposals, ai_decision_runs, customer_messages, payments, recovery_cases RESTART IDENTITY CASCADE`);
     await db.insert(recoveryCases).values({
       id: caseId,
       invoiceNumber: "INV-TEST-WEBHOOK",
@@ -103,9 +102,6 @@ integration("Razorpay webhook database transaction", () => {
 
   afterAll(async () => {
     if (!testDatabaseUrl) return;
-    const db = getDb();
-    await db.delete(payments).where(eq(payments.recoveryCaseId, caseId));
-    await db.delete(recoveryCases).where(eq(recoveryCases.id, caseId));
     await closeDb();
   });
 

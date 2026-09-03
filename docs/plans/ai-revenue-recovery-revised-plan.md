@@ -542,7 +542,7 @@ Already present:
 
 **Done when:** one real Test Mode partial payment reduces the correct case balance exactly once.
 
-### Milestone 8 — Live AI commitment interpreter and recovery handoff
+### Milestone 8 — Live AI commitment interpreter and recovery handoff ✅ COMPLETE
 
 This is the first major, unmistakably AI-focused product milestone. It must show that the model changes a recovery decision, not merely generate copy.
 
@@ -570,12 +570,13 @@ This is the first major, unmistakably AI-focused product milestone. It must show
 
 **Done when:** the complete story remains coherent even if the external payment step fails.
 
-### Remaining roadmap after Milestone 7
+### Remaining roadmap after Milestone 8
 
-Two milestones remain:
+Milestone 8 was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. The checked-in authenticated corpus run is measured model-decision evidence on synthetic messages; it is not merchant recovery evidence. The live ZDR-preferred smoke found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback.
 
-1. **Milestone 8:** build the live AI commitment interpreter and bounded recovery handoff.
-2. **Milestone 9:** consolidate, label, reset, harden, and rehearse the judge-facing experience.
+One milestone remains:
+
+1. **Milestone 9:** consolidate, reset, harden, and rehearse the judge-facing experience.
 
 Model-driven batch ranking, autonomous concessions, generated outbound messaging, production communication channels, calibrated risk/uplift scores, natural-language policy compilation, cross-product Razorpay adapters, document verification, and autonomous multi-agent negotiation are explicitly deferred until after the hackathon core is complete.
 

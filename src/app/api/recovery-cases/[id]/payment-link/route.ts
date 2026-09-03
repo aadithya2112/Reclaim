@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { recoveryCases } from "@/db/schema";
+import { operationalAuditEvents, recoveryCases, recoveryProposals } from "@/db/schema";
+import { auditValues, proposalFromJson } from "@/lib/operational-recovery";
 import {
   createRazorpayPaymentLink,
   RazorpayApiError,
@@ -27,6 +28,30 @@ export async function POST(_request: Request, { params }: RouteContext) {
         { error: "This recovery case is already recovered" },
         { status: 409 },
       );
+    }
+
+    const [operationalProposal] = await db
+      .select({ id: recoveryProposals.id })
+      .from(recoveryProposals)
+      .where(eq(recoveryProposals.recoveryCaseId, recoveryCase.id))
+      .limit(1);
+    if (recoveryCase.invoiceNumber === "INV-003" || operationalProposal) {
+      if (!recoveryCase.approvedProposalId) {
+        return Response.json(
+          { error: "A human-approved policy-eligible proposal is required before collection handoff" },
+          { status: 409 },
+        );
+      }
+      const [approved] = await db
+        .select()
+        .from(recoveryProposals)
+        .where(eq(recoveryProposals.id, recoveryCase.approvedProposalId))
+        .limit(1);
+      if (!approved) return Response.json({ error: "Approved proposal is unavailable" }, { status: 409 });
+      const proposal = proposalFromJson(approved.proposal);
+      if (!["OFFER_PARTIAL_PAYMENT", "SEND_PAYMENT_LINK"].includes(proposal.proposed_action)) {
+        return Response.json({ error: "The approved action does not authorize a Payment Link" }, { status: 409 });
+      }
     }
 
     if (
@@ -103,6 +128,18 @@ export async function POST(_request: Request, { params }: RouteContext) {
 
       throw new Error("Payment Link was created but could not be persisted");
     }
+
+
+    await db.insert(operationalAuditEvents).values(
+      auditValues(
+        recoveryCase.id,
+        "RAZORPAY_ADAPTER",
+        "PAYMENT_LINK_CREATED",
+        "Approved bounded proposal handed off to a partial-enabled Razorpay Test Mode Payment Link.",
+        "RAZORPAY TEST MODE",
+        { paymentLinkId: updatedCase.id, referenceId: paymentLink.reference_id, amountPaise: paymentLink.amount, approvedProposalId: recoveryCase.approvedProposalId },
+      ),
+    );
 
     return Response.json({
       paymentLink: { ...updatedCase, acceptsPartial: true },

@@ -13,6 +13,9 @@ export type RecoveryCaseSnapshot = {
   amountDue: number;
   amountRecovered: number;
   status: "OPEN" | "PARTIALLY_PAID" | "RECOVERED";
+  operationalQueueStatus: "ACT_NOW" | "WAIT_PROTECTED" | "DEFERRED_CAPACITY" | "CLOSED";
+  queuePriority: number;
+  approvedProposalId: string | null;
   outreachStatus: "ACTIVE" | "ADJUSTED_TO_BALANCE" | "STOPPED";
   razorpayPaymentLinkId: string | null;
   razorpayPaymentLinkUrl: string | null;

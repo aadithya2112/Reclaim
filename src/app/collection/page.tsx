@@ -1,5 +1,6 @@
-import { RecoveryWorkspace } from "@/app/components/recovery-workspace";
+import { RecoveryWorkspace, type Replay } from "@/app/components/recovery-workspace";
 import { getRecoveryCaseSnapshot } from "@/lib/recovery";
+import { getOperationalReplay } from "@/lib/operational-recovery";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +8,10 @@ export const dynamic = "force-dynamic";
 const MILESTONE_CASE_ID = "rc_m7_inv_003";
 
 export default async function CollectionPage() {
-  const recoveryCase = await getRecoveryCaseSnapshot(MILESTONE_CASE_ID);
+  const [recoveryCase, replay] = await Promise.all([
+    getRecoveryCaseSnapshot(MILESTONE_CASE_ID),
+    getOperationalReplay(MILESTONE_CASE_ID),
+  ]);
 
   if (!recoveryCase) {
     return (
@@ -23,5 +27,5 @@ export default async function CollectionPage() {
     );
   }
 
-  return <RecoveryWorkspace initialCase={recoveryCase} />;
+  return <RecoveryWorkspace initialCase={recoveryCase} initialReplay={replay as Replay} />;
 }

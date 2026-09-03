@@ -1,6 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { payments, recoveryCases } from "@/db/schema";
+import { operationalAuditEvents, payments, promises, recoveryCases, recoveryProposals } from "@/db/schema";
+import { authoritativeRemainder } from "@/lib/commitment-interpreter";
+import { auditValues, evidenceLabels, proposalFromJson } from "@/lib/operational-recovery";
 import { getRazorpayEnv } from "@/lib/env";
 import { outreachStatusFor, recoveryStatusFor } from "@/lib/recovery";
 import {
@@ -118,6 +120,37 @@ export async function POST(request: Request) {
       })
       .where(eq(recoveryCases.id, recoveryCase.id));
 
+    let promiseActivated = false;
+    let promiseAmountPaise: number | null = null;
+    let promotedCaseId: string | null = null;
+    if (inserted.length > 0 && recoveryCase.approvedProposalId) {
+      const [proposalRow] = await tx.select().from(recoveryProposals).where(eq(recoveryProposals.id, recoveryCase.approvedProposalId)).limit(1);
+      if (proposalRow) {
+        const proposal = proposalFromJson(proposalRow.proposal);
+        const [pendingPromise] = await tx.select().from(promises).where(and(eq(promises.proposalId, proposalRow.id), eq(promises.status, "PENDING_VERIFICATION"))).limit(1).for("update");
+        if (status === "RECOVERED" && pendingPromise) {
+          await tx.update(promises).set({ status: "FULFILLED", amountPaise: 0, activationRazorpayEventId: eventId, activatedAt: now, updatedAt: now }).where(eq(promises.id, pendingPromise.id));
+        } else if (pendingPromise && proposal.promise_amount_mode === "REMAINDER" && proposal.pay_now_paise === paymentLink.amount_paid) {
+          promiseAmountPaise = authoritativeRemainder(recoveryCase.amountDue, amountRecovered);
+          await tx.update(promises).set({ status: "ACTIVE", amountPaise: promiseAmountPaise, activationRazorpayEventId: eventId, activatedAt: now, updatedAt: now }).where(eq(promises.id, pendingPromise.id));
+          await tx.update(recoveryCases).set({ operationalQueueStatus: "WAIT_PROTECTED", updatedAt: now }).where(eq(recoveryCases.id, recoveryCase.id));
+          const [nextCase] = await tx.select({ id: recoveryCases.id }).from(recoveryCases).where(eq(recoveryCases.operationalQueueStatus, "DEFERRED_CAPACITY")).orderBy(desc(recoveryCases.queuePriority), recoveryCases.id).limit(1).for("update");
+          if (nextCase) {
+            promotedCaseId = nextCase.id;
+            await tx.update(recoveryCases).set({ operationalQueueStatus: "ACT_NOW", updatedAt: now }).where(eq(recoveryCases.id, nextCase.id));
+          }
+          promiseActivated = true;
+        }
+      }
+    }
+
+    if (inserted.length > 0) {
+      await tx.insert(operationalAuditEvents).values([
+        auditValues(recoveryCase.id, "RAZORPAY_WEBHOOK", "VERIFIED_PAYMENT_RECORDED", "A signed Test Mode webhook advanced cumulative recovered money monotonically.", evidenceLabels.webhook, { eventId, paymentId: payment.id, paymentLinkId: paymentLink.id, eventType: webhook.event, amountPaise: payment.amount, cumulativeAmountPaidPaise: paymentLink.amount_paid, amountRecoveredPaise: amountRecovered }),
+        ...(promiseActivated ? [auditValues(recoveryCase.id, "POLICY", "PROMISE_ACTIVATED_AND_CAPACITY_REALLOCATED", "Verified partial payment activated the deterministic remainder promise, protected this case, and released its contact slot.", evidenceLabels.policy, { eventId, promiseAmountPaise, queueStatus: "WAIT_PROTECTED", promotedCaseId })] : []),
+      ]);
+    }
+
     return {
       kind:
         inserted.length === 0
@@ -130,6 +163,9 @@ export async function POST(request: Request) {
       amountRecovered,
       outstandingAmount: recoveryCase.amountDue - amountRecovered,
       outreachStatus: outreachStatusFor(status),
+      promiseActivated,
+      promiseAmountPaise,
+      promotedCaseId,
     };
   });
 

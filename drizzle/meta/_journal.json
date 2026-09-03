@@ -15,6 +15,13 @@
       "when": 1788447806272,
       "tag": "0001_big_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788451005845,
+      "tag": "0002_aberrant_roughhouse",
+      "breakpoints": true
     }
   ]
 }

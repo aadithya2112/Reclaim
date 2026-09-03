@@ -1,306 +1,134 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { DEMO_MESSAGE } from "@/lib/cached-commitment";
+import type { CommitmentProposal } from "@/lib/commitment-interpreter";
 import type { RecoveryCaseSnapshot } from "@/lib/recovery";
 
-const money = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-});
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+const dateTime = new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+const DEMO_RECEIVED_AT = "2026-09-03T10:00:00+05:30";
+const formatMoney = (paise: number) => money.format(paise / 100);
 
-const date = new Intl.DateTimeFormat("en-IN", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  timeZone: "Asia/Kolkata",
-});
+export type Replay = {
+  approvedProposalId: string | null;
+  messages: Array<{ id: string; body: string; receivedAt: string }>;
+  runs: Array<{ id: string; status: string; modelId: string; providerName: string | null; failureCode: string | null; canonicalInputHash: string; promptVersion: string; schemaVersion: string }>;
+  proposals: Array<{ id: string; revision: number; source: string; proposalHash: string; proposal: CommitmentProposal }>;
+  policies: Array<{ proposalId: string; outcome: string; reasons: string[] }>;
+  approvals: Array<{ proposalId: string; decision: string; reviewer: string; overrideProposalId: string | null }>;
+  promises: Array<{ id: string; proposalId: string; promisedDate: string; amountPaise: number | null; status: string; activationRazorpayEventId: string | null }>;
+  audit: Array<{ id: string; eventType: string; detail: string; actor: string; evidenceLabel: string; payloadHash: string; createdAt: string }>;
+  queue: Array<{ id: string; invoiceNumber: string; customerName: string; outstandingPaise: number; queueStatus: string; queuePriority: number }>;
+};
 
-const dateTime = new Intl.DateTimeFormat("en-IN", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Asia/Kolkata",
-});
-
-function formatMinorUnits(amount: number) {
-  return money.format(amount / 100);
+function Evidence({ proposal, message }: { proposal: CommitmentProposal; message: string }) {
+  return <div className="evidence-spans">{proposal.evidence.map((item, index) => (
+    <div key={`${item.field}-${index}`}><span>{item.field.replaceAll("_", " ")}</span><q>{message.slice(item.start, item.end)}</q><code>{item.start}:{item.end}</code></div>
+  ))}</div>;
 }
 
-function FlowStep({
-  label,
-  detail,
-  state,
-}: {
-  label: string;
-  detail: string;
-  state: "complete" | "current" | "waiting";
-}) {
-  return (
-    <li className={`flow-step flow-step--${state}`}>
-      <span className="flow-marker" aria-hidden="true" />
-      <div>
-        <strong>{label}</strong>
-        <span>{detail}</span>
-      </div>
-    </li>
-  );
-}
-
-export function RecoveryWorkspace({
-  initialCase,
-}: {
-  initialCase: RecoveryCaseSnapshot;
-}) {
+export function RecoveryWorkspace({ initialCase, initialReplay }: { initialCase: RecoveryCaseSnapshot; initialReplay: Replay }) {
   const [recoveryCase, setRecoveryCase] = useState(initialCase);
-  const [isCreating, setIsCreating] = useState(false);
+  const [replay, setReplay] = useState<Replay | null>(initialReplay);
+  const [message, setMessage] = useState(DEMO_MESSAGE);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isRecovered = recoveryCase.status === "RECOVERED";
-  const isPartiallyPaid = recoveryCase.status === "PARTIALLY_PAID";
-  const hasVerifiedPayment = recoveryCase.amountRecovered > 0;
-  const hasPaymentLink = Boolean(recoveryCase.razorpayPaymentLinkUrl);
-  const outstanding = Math.max(
-    0,
-    recoveryCase.amountDue - recoveryCase.amountRecovered,
-  );
-
-  const refreshCase = useCallback(async () => {
-    const response = await fetch(`/api/recovery-cases/${recoveryCase.id}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) return;
-    const body = (await response.json()) as {
-      recoveryCase: RecoveryCaseSnapshot;
-    };
-    setRecoveryCase(body.recoveryCase);
-  }, [recoveryCase.id]);
+  const refresh = useCallback(async () => {
+    const [caseResponse, replayResponse] = await Promise.all([
+      fetch(`/api/recovery-cases/${initialCase.id}`, { cache: "no-store" }),
+      fetch(`/api/recovery-cases/${initialCase.id}/replay`, { cache: "no-store" }),
+    ]);
+    if (caseResponse.ok) setRecoveryCase(((await caseResponse.json()) as { recoveryCase: RecoveryCaseSnapshot }).recoveryCase);
+    if (replayResponse.ok) setReplay(((await replayResponse.json()) as { replay: Replay }).replay);
+  }, [initialCase.id]);
 
   useEffect(() => {
-    if (!hasPaymentLink || isRecovered) return;
+    if (!recoveryCase.razorpayPaymentLinkId || recoveryCase.status === "RECOVERED") return;
+    const timer = window.setInterval(() => void refresh(), 2_500);
+    return () => window.clearInterval(timer);
+  }, [recoveryCase.razorpayPaymentLinkId, recoveryCase.status, refresh]);
 
-    const interval = window.setInterval(() => void refreshCase(), 2_500);
-    return () => window.clearInterval(interval);
-  }, [hasPaymentLink, isRecovered, refreshCase]);
+  const latestProposal = replay?.proposals.at(-1) ?? null;
+  const latestPolicy = latestProposal ? replay?.policies.findLast((item) => item.proposalId === latestProposal.id) : null;
+  const approved = Boolean(latestProposal && replay?.approvedProposalId === latestProposal.id);
+  const outstanding = recoveryCase.amountDue - recoveryCase.amountRecovered;
+  const progress = Math.round((recoveryCase.amountRecovered / recoveryCase.amountDue) * 100);
+  const promise = replay?.promises.findLast((item) => item.status !== "CANCELLED") ?? null;
 
-  const recoveredPercent = useMemo(
-    () =>
-      Math.min(
-        100,
-        Math.round(
-          (recoveryCase.amountRecovered / recoveryCase.amountDue) * 100,
-        ),
-      ),
-    [recoveryCase.amountDue, recoveryCase.amountRecovered],
-  );
-
-  async function createPaymentLink() {
-    setIsCreating(true);
-    setError(null);
-
+  async function act(label: string, url: string, body?: unknown) {
+    setBusy(label); setError(null);
     try {
-      const response = await fetch(
-        `/api/recovery-cases/${recoveryCase.id}/payment-link`,
-        { method: "POST" },
-      );
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Payment Link creation failed");
-      await refreshCase();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Something went wrong");
-    } finally {
-      setIsCreating(false);
-    }
+      const response = await fetch(url, { method: "POST", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
+      const result = (await response.json()) as { error?: string; failureCode?: string };
+      if (!response.ok) throw new Error(result.error ?? result.failureCode ?? "Action failed");
+      await refresh();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Action failed"); }
+    finally { setBusy(null); }
   }
 
+  const modelLabel = replay?.runs[0]?.status === "CACHED_REPLAY" ? "CACHED MODEL REPLAY" : "LIVE MODEL";
+  const currentMessage = replay?.messages[0]?.body ?? message;
+
   return (
-    <main className="app-shell">
+    <main className="decision-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Recoup home">
-          <span className="brand-mark" aria-hidden="true">
-            R
-          </span>
-          <span>recoup</span>
-        </a>
-        <div className="collection-navigation">
-          <Link href="/">Command center</Link>
-          <div className="environment">
-            <span className="environment-dot" /> Razorpay test mode
-          </div>
-        </div>
+        <a className="brand" href="#top"><span className="brand-mark">R</span><span>recoup</span></a>
+        <nav className="collection-navigation"><Link href="/">Recovery Frontier</Link><span className="environment"><span className="environment-dot" /> Razorpay Test Mode</span></nav>
       </header>
 
-      <div className="workspace" id="top">
-        <section className="case-main" aria-labelledby="case-title">
-          <div className="case-heading">
-            <div>
-              <p className="eyebrow">Recovery case · {recoveryCase.id}</p>
-              <h1 id="case-title">{recoveryCase.invoiceNumber}</h1>
-              <p className="customer-name">{recoveryCase.customerName}</p>
-            </div>
-            <span className={`status status--${recoveryCase.status.toLowerCase()}`}>
-              <span aria-hidden="true" /> {recoveryCase.status}
-            </span>
+      <section className="decision-hero" id="top">
+        <div><p className="eyebrow">Operational Decision Replay · {recoveryCase.invoiceNumber}</p><h1>Interpret. Approve.<br/><em>Verify the money.</em></h1><p>AI reads the commitment. Policy bounds it. A human authorizes it. Only Razorpay’s signed webhook changes the ledger.</p></div>
+        <div className="hero-balance"><span>Authoritative outstanding</span><strong>{formatMoney(outstanding)}</strong><div><i style={{ width: `${progress}%` }} /><span>{formatMoney(recoveryCase.amountRecovered)} verified</span></div></div>
+      </section>
+
+      <section className="decision-grid">
+        <article className="decision-card message-card">
+          <div className="card-number">01</div><p className="eyebrow">Untrusted input</p><h2>Customer response</h2>
+          <textarea aria-label="Customer response" value={message} onChange={(event) => setMessage(event.target.value)} />
+          <p className="input-meta">Received 03 Sep 2026 · 10:00 IST · English / Hinglish</p>
+          <div className="button-row">
+            <button disabled={Boolean(busy)} onClick={() => void act("live", `/api/recovery-cases/${recoveryCase.id}/interpret`, { message, receivedAt: DEMO_RECEIVED_AT, mode: "LIVE" })}>{busy === "live" ? "Interpreting…" : "Run live AI"}</button>
+            <button className="secondary-button" disabled={Boolean(busy)} onClick={() => void act("cache", `/api/recovery-cases/${recoveryCase.id}/interpret`, { message, receivedAt: DEMO_RECEIVED_AT, mode: "CACHED_REPLAY" })}>Use cached replay</button>
           </div>
+          {error ? <p className="error-note" role="alert">{error}</p> : null}
+        </article>
 
-          <div className="amount-block">
-            <p>{isPartiallyPaid ? "Remaining balance" : "Outstanding"}</p>
-            <strong>{formatMinorUnits(outstanding)}</strong>
-            <div className="amount-progress" aria-label={`${recoveredPercent}% recovered`}>
-              <span style={{ width: `${recoveredPercent}%` }} />
-            </div>
-            <div className="amount-caption">
-              <span>{formatMinorUnits(recoveryCase.amountRecovered)} recovered</span>
-              <span>{formatMinorUnits(recoveryCase.amountDue)} invoice total</span>
-            </div>
-          </div>
+        <article className="decision-card model-card">
+          <div className="card-number">02</div><div className="card-title-row"><div><p className="eyebrow">Grounded extraction</p><h2>AI proposal</h2></div>{latestProposal ? <span className={`provenance ${modelLabel.startsWith("CACHED") ? "provenance--cache" : ""}`}>{modelLabel}</span> : null}</div>
+          {latestProposal ? <>
+            <div className="proposal-primary"><span>{latestProposal.proposal.intent.replaceAll("_", " ")}</span><strong>{latestProposal.proposal.pay_now_paise ? formatMoney(latestProposal.proposal.pay_now_paise) : "No amount"}</strong><p>now · remainder on {latestProposal.proposal.promised_date ?? "—"}</p></div>
+            <div className="signal-row"><span>Invoice verification</span><strong>{latestProposal.proposal.invoice_verification_requested ? "Requested" : "No signal"}</strong><span>Confidence</span><strong>{Math.round(latestProposal.proposal.confidence * 100)}%</strong></div>
+            <Evidence proposal={latestProposal.proposal} message={currentMessage} />
+            <p className="hash-line">output {latestProposal.proposalHash.slice(0, 14)}… · revision {latestProposal.revision}</p>
+          </> : <p className="empty-copy">Run the interpreter to freeze a validated proposal and its exact evidence spans.</p>}
+        </article>
 
-          <dl className="case-facts">
-            <div>
-              <dt>Due date</dt>
-              <dd>{date.format(new Date(`${recoveryCase.dueDate}T00:00:00+05:30`))}</dd>
-            </div>
-            <div>
-              <dt>Customer email</dt>
-              <dd>{recoveryCase.customerEmail}</dd>
-            </div>
-            <div>
-              <dt>Currency</dt>
-              <dd>{recoveryCase.currency}</dd>
-            </div>
-          </dl>
+        <article className="decision-card policy-card">
+          <div className="card-number">03</div><p className="eyebrow">Deterministic authority</p><h2>Policy & approval</h2>
+          {latestPolicy ? <><div className={`policy-verdict policy-verdict--${latestPolicy.outcome.toLowerCase()}`}><span>{latestPolicy.outcome.replaceAll("_", " ")}</span><strong>{latestPolicy.outcome === "APPROVAL_REQUIRED" ? "Human judgment required" : latestPolicy.outcome}</strong></div><ul className="reason-list">{latestPolicy.reasons.map((reason) => <li key={reason}>{reason.replaceAll("_", " ")}</li>)}</ul>
+            {!approved && latestProposal && latestPolicy.outcome !== "BLOCKED" ? <button disabled={Boolean(busy)} onClick={() => void act("approve", `/api/recovery-proposals/${latestProposal.id}/approval`, { decision: "APPROVED", reviewer: "Finance operator", note: "Approve ₹40,000 partial collection; invoice verification remains routed for review." })}>{busy === "approve" ? "Recording…" : "Approve bounded action"}</button> : approved ? <div className="approved-stamp">✓ Human approved · model output preserved</div> : <div className="error-note">Policy block · no handoff allowed</div>}
+          </> : <p className="empty-copy">Policy runs after local schema and cross-field validation. It cannot be bypassed by model text.</p>}
+        </article>
+      </section>
 
-          <section className="payments-section" aria-labelledby="payments-title">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Ledger</p>
-                <h2 id="payments-title">Captured payments</h2>
-              </div>
-              <span>{recoveryCase.payments.length}</span>
-            </div>
+      <section className="handoff-band">
+        <div><p className="eyebrow">04 · Razorpay handoff</p><h2>{recoveryCase.status === "RECOVERED" ? "Collection verified and complete" : recoveryCase.razorpayPaymentLinkId ? "Checkout ready; webhook pending" : approved ? "Approved for Test Mode collection" : "Locked until approval"}</h2><p>A browser return never records payment. Signed raw-body webhooks are the only financial truth.</p></div>
+        <div className="handoff-actions">
+          {recoveryCase.status === "RECOVERED" ? <div className="approved-stamp">✓ Verified webhook closed the balance</div> : !recoveryCase.razorpayPaymentLinkId ? <button disabled={!approved || Boolean(busy)} onClick={() => void act("link", `/api/recovery-cases/${recoveryCase.id}/payment-link`)}>{busy === "link" ? "Creating…" : "Create approved Payment Link"}</button> : <a className="primary-action" href={recoveryCase.razorpayPaymentLinkUrl ?? "#"} target="_blank" rel="noreferrer">Open Razorpay Checkout ↗</a>}
+          <code>{recoveryCase.razorpayPaymentLinkId ?? "No external payment object yet"}</code>
+        </div>
+      </section>
 
-            {recoveryCase.payments.length === 0 ? (
-              <div className="empty-state">
-                <span>—</span>
-                <p>No captured payments yet. Verified Razorpay webhooks appear here.</p>
-              </div>
-            ) : (
-              <div className="payment-table" role="table" aria-label="Captured payments">
-                {recoveryCase.payments.map((payment) => (
-                  <div className="payment-row" role="row" key={payment.id}>
-                    <div role="cell">
-                      <strong>{payment.razorpayPaymentId}</strong>
-                      <span>
-                        {dateTime.format(new Date(payment.capturedAt))} · {payment.razorpayEventType ?? "legacy verified event"}
-                      </span>
-                    </div>
-                    <div role="cell">
-                      <span>{payment.method.toUpperCase()}</span>
-                      <strong>{formatMinorUnits(payment.amount)}</strong>
-                      {payment.paymentLinkAmountPaid !== null ? (
-                        <span>{formatMinorUnits(payment.paymentLinkAmountPaid)} cumulative on link</span>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </section>
+      <section className="after-grid">
+        <article><p className="eyebrow">05 · Promise protection</p><h2>{promise?.status === "ACTIVE" ? `${formatMoney(promise.amountPaise ?? 0)} protected` : recoveryCase.status === "RECOVERED" ? "No remainder outstanding" : "Waiting for verified ₹40,000"}</h2><p>{promise?.status === "ACTIVE" ? `Authoritative application arithmetic activated the remainder through ${promise.promisedDate}.` : recoveryCase.status === "RECOVERED" ? "Verified cumulative payment already closed this case; no new promise is inferred." : "The model’s remainder is pending; it is not authoritative until the exact verified partial payment arrives."}</p><span className="provenance">{promise?.status === "ACTIVE" || recoveryCase.status === "RECOVERED" ? "VERIFIED TEST WEBHOOK" : "NO PAYMENT CLAIM"}</span></article>
+        <article><p className="eyebrow">06 · Operational queue</p><h2>Freed capacity moves</h2><div className="queue-list">{replay?.queue.map((item) => <div key={item.id} className={item.id === recoveryCase.id ? "queue-current" : ""}><span>{item.invoiceNumber}<small>{item.customerName}</small></span><strong>{item.queueStatus.replaceAll("_", " ")}</strong></div>)}</div><p className="boundary-note">Operational Test Mode queue · separate from the synthetic Recovery Frontier.</p></article>
+      </section>
 
-        <aside className="case-inspector" aria-label="Recovery workflow">
-          <div className="inspector-head">
-            <p className="eyebrow">Collection path</p>
-            <h2>
-              {isRecovered
-                ? "Payment recovered"
-                : isPartiallyPaid
-                  ? "Partial payment verified"
-                  : "Recovery in progress"}
-            </h2>
-            <p>
-              {isRecovered
-                ? "The verified payment has been recorded against this case."
-                : isPartiallyPaid
-                  ? `Verified money is recorded. Outreach is adjusted to the ${formatMinorUnits(outstanding)} balance.`
-                : hasPaymentLink
-                  ? "The link is ready. Case state changes only after a signed webhook."
-                  : "Create a hosted checkout that accepts a bounded partial payment."}
-            </p>
-          </div>
-
-          <ol className="flow-list">
-            <FlowStep label="Invoice overdue" detail="Synthetic fixture loaded" state="complete" />
-            <FlowStep label="Recovery case" detail="Owned by this application" state="complete" />
-            <FlowStep
-              label="Payment Link"
-              detail={hasPaymentLink ? "Partial-enabled in Razorpay" : "Not created"}
-              state={hasPaymentLink ? "complete" : "current"}
-            />
-            <FlowStep
-              label="Verified webhook"
-              detail={hasVerifiedPayment ? "Signature accepted" : "Awaiting payment"}
-              state={hasVerifiedPayment ? "complete" : hasPaymentLink ? "current" : "waiting"}
-            />
-            <FlowStep
-              label="Outreach response"
-              detail={
-                isRecovered
-                  ? "Stopped after full recovery"
-                  : isPartiallyPaid
-                    ? "Adjusted to remaining balance"
-                    : "Pending verified money"
-              }
-              state={isRecovered ? "complete" : isPartiallyPaid ? "current" : "waiting"}
-            />
-          </ol>
-
-          <div className="inspector-action">
-            {!hasPaymentLink ? (
-              <button type="button" onClick={createPaymentLink} disabled={isCreating}>
-                {isCreating ? "Creating secure link…" : "Create test payment link"}
-              </button>
-            ) : !isRecovered ? (
-              <a
-                className="primary-action"
-                href={recoveryCase.razorpayPaymentLinkUrl ?? "#"}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {isPartiallyPaid ? "Pay remaining balance" : "Open Razorpay checkout"} <span aria-hidden="true">↗</span>
-              </a>
-            ) : (
-              <div className="success-note">
-                <span aria-hidden="true">✓</span>
-                <div>
-                  <strong>Recovery complete</strong>
-                  <p>{recoveryCase.recoveredAt ? dateTime.format(new Date(recoveryCase.recoveredAt)) : "Recorded"}</p>
-                </div>
-              </div>
-            )}
-
-            {hasPaymentLink && !isRecovered ? (
-              <p className="polling-note">
-                <span aria-hidden="true" /> {isPartiallyPaid ? "Awaiting the next verified payment" : "Awaiting verified webhook"}
-              </p>
-            ) : null}
-
-            {error ? <p className="error-note" role="alert">{error}</p> : null}
-          </div>
-
-          {recoveryCase.razorpayPaymentLinkId ? (
-            <div className="external-reference">
-              <span>Razorpay Payment Link</span>
-              <code>{recoveryCase.razorpayPaymentLinkId}</code>
-              <span>
-                Test Mode · {hasVerifiedPayment ? "verified payment event" : "awaiting signed payment event"} · {recoveryCase.outreachStatus.replaceAll("_", " ")}
-              </span>
-            </div>
-          ) : null}
-        </aside>
-      </div>
+      <section className="timeline-section"><div className="section-heading"><div><p className="eyebrow">Full provenance</p><h2>Append-only decision timeline</h2></div><span>{replay?.audit.length ?? 0} events</span></div><div className="replay-timeline">{replay?.audit.length ? replay.audit.map((event) => <div key={event.id}><time>{dateTime.format(new Date(event.createdAt))}</time><span className="timeline-dot"/><div><span className="provenance">{event.evidenceLabel}</span><h3>{event.eventType.replaceAll("_", " ")}</h3><p>{event.detail}</p><code>{event.actor} · {event.payloadHash.slice(0, 14)}…</code></div></div>) : <p className="empty-copy">No operational decisions have been recorded yet.</p>}</div></section>
+      <footer className="evidence-footer"><strong>Evidence boundary</strong><span>Razorpay Test Mode demonstrates integration behavior. Model decisions are measured; policy is deterministic; the Recovery Frontier remains synthetic and unchanged.</span></footer>
     </main>
   );
 }
