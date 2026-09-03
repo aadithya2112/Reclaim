@@ -1,6 +1,8 @@
 # Recoup — Razorpay Receivables Recovery Spike
 
-Milestones 1–8 are complete. The operational proof now starts with an unstructured English/Hinglish commitment, freezes a grounded structured model proposal, applies deterministic policy and explicit human approval, hands the bounded action to a partial-enabled Razorpay Test Mode Payment Link, and lets only signed webhooks advance money, activate the authoritative remainder promise, and reallocate the operational queue.
+The implementation planned through Milestone 8 is complete. The operational flow starts with an unstructured English/Hinglish commitment, freezes a grounded structured model proposal, applies deterministic policy and explicit human approval, hands the bounded action to a partial-enabled Razorpay Test Mode Payment Link, and lets only signed webhooks advance money, activate the authoritative remainder promise, and reallocate the operational queue.
+
+Automated verification is green: lint, typecheck, 50 unit tests, 5 disposable-database integration tests, the Chromium operator-flow test, and the production build passed on 2026-09-03. Authenticated OpenRouter and read-only Razorpay Test Mode smokes also passed. The hosted ₹40,000 checkout-to-public-webhook acceptance run has not yet been performed, the preferred OpenRouter ZDR route was unavailable, and the measured model corpus exposed cases that still fail closed. See [Todo.md](Todo.md) for the exact open verification and reliability work.
 
 One planned milestone remains:
 
@@ -19,7 +21,7 @@ Milestone 8 deliberately keeps `recoup-hybrid` as the deterministic, reproducibl
 
 The operational loop remains intentionally small. A separate pure TypeScript simulation harness now evaluates bounded recovery workflows without changing the PostgreSQL schema or calling Razorpay.
 
-The root workspace now opens the Milestone 6 Recovery Command Center. The original verified Razorpay Test Mode collection loop remains available at `/collection`.
+The root workspace now opens the Milestone 6 Recovery Command Center. The webhook-authoritative Razorpay Test Mode collection loop remains available at `/collection`.
 
 ## Deterministic recovery simulation (Milestones 2–5)
 
@@ -116,7 +118,7 @@ The dashboard API is `GET /api/recovery-frontier?scenario=standard&contacts=20&r
 
 The `/collection` workspace uses `INV-003` as a fresh ₹75,000 Test Mode fixture. Its Standard Payment Link accepts partial payment with a deterministic first-payment floor of the greater of ₹500 or 25% of the link amount. The application stores the link ID, unique reference, amount, and starting recovered balance for explicit correlation.
 
-Both `payment_link.partially_paid` and `payment_link.paid` are accepted only after raw-body signature verification. Payment and event IDs are unique, the case row is locked during mutation, and Razorpay's cumulative `amount_paid` advances the application balance monotonically. A delayed older partial event therefore cannot reopen or reduce a fully recovered case. `PARTIALLY_PAID` adjusts outreach to the remaining balance; `RECOVERED` stops it. These are verified Test Mode integration facts, not evidence of live merchant uplift.
+Both `payment_link.partially_paid` and `payment_link.paid` are accepted only after raw-body signature verification. Payment and event IDs are unique, the case row is locked during mutation, and Razorpay's cumulative `amount_paid` advances the application balance monotonically. A delayed older partial event therefore cannot reopen or reduce a fully recovered case. `PARTIALLY_PAID` adjusts outreach to the remaining balance; `RECOVERED` stops it. This behavior is covered by signed-payload database integration tests; the hosted Test Mode checkout and public webhook delivery remain an open acceptance check. Test Mode behavior is not evidence of live merchant uplift.
 
 ## Local setup
 

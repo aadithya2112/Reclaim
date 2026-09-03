@@ -532,7 +532,7 @@ Already present:
 
 **Done when:** a judge can understand the decision advantage, burden trade-off, evidence source, and assumptions in under one minute.
 
-### Milestone 7 — Live partial payment
+### Milestone 7 — Live partial payment — IMPLEMENTED; HOSTED ACCEPTANCE PENDING
 
 - Extend operational cases narrowly for partially paid state and outstanding balance.
 - Enable partial payment on the demo Payment Link.
@@ -542,7 +542,7 @@ Already present:
 
 **Done when:** one real Test Mode partial payment reduces the correct case balance exactly once.
 
-### Milestone 8 — Live AI commitment interpreter and recovery handoff ✅ COMPLETE
+### Milestone 8 — Live AI commitment interpreter and recovery handoff — IMPLEMENTATION COMPLETE; LIVE ACCEPTANCE PENDING
 
 This is the first major, unmistakably AI-focused product milestone. It must show that the model changes a recovery decision, not merely generate copy.
 
@@ -565,16 +565,18 @@ This is the first major, unmistakably AI-focused product milestone. It must show
 - Unify the existing Command Center, the new operational Decision Replay, and Evidence Lab without adding separate role-based portals.
 - Add provenance badges, metric definitions, and limitations.
 - Add deterministic demo reset and seeded scenarios.
-- Harden the tested live-payment fixture, cached-model replay, and recorded fallback.
+- Harden the implemented live-payment fixture, cached-model replay, and recorded fallback.
 - Rehearse the three-minute flow and skeptical judge questions.
 
 **Done when:** the complete story remains coherent even if the external payment step fails.
 
 ### Remaining roadmap after Milestone 8
 
-Milestone 8 was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. The checked-in authenticated corpus run is measured model-decision evidence on synthetic messages; it is not merchant recovery evidence. The live ZDR-preferred smoke found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback.
+Milestone 8 implementation was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. Lint, typecheck, 50 unit tests, 5 disposable-database integration tests, the Chromium operator-flow test, and the production build passed. The authenticated OpenRouter smoke succeeded, and the authenticated Razorpay smoke verified read-only Test Mode access.
 
-One milestone remains:
+The remaining acceptance and reliability work is tracked in [Todo.md](../../Todo.md). In particular, the hosted ₹40,000 Razorpay Checkout-to-public-webhook run was not completed; only the signed-payload integration path was exercised. The ZDR-preferred OpenRouter smoke found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback. The checked-in authenticated corpus run remains measured model-decision evidence on synthetic messages, not merchant recovery evidence, and currently records fail-closed reliability gaps that must not be presented as successful interpretations.
+
+One product milestone remains, alongside the acceptance and reliability backlog above:
 
 1. **Milestone 9:** consolidate, reset, harden, and rehearse the judge-facing experience.
 
