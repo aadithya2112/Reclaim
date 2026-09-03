@@ -22,6 +22,13 @@
       "when": 1788451005845,
       "tag": "0002_aberrant_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788454678636,
+      "tag": "0003_spotty_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

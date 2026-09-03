@@ -7,7 +7,7 @@ import {
 } from "@/lib/commitment-interpreter";
 
 export const OPENROUTER_MODEL = "openai/gpt-5-mini";
-export const OPENROUTER_PROVIDER_POLICY_VERSION = "openrouter-private-routing-v1";
+export const OPENROUTER_PROVIDER_POLICY_VERSION = "openrouter-private-routing-v2";
 
 export type OpenRouterFailureCode = "AUTH" | "PAYMENT_REQUIRED" | "RATE_LIMITED" | "PROVIDER_UNAVAILABLE" | "TIMEOUT" | "REFUSED" | "TRUNCATED" | "MALFORMED" | "INVALID_RESPONSE";
 
@@ -41,7 +41,14 @@ function safeErrorDetail(body: unknown) {
   return parsed.success ? parsed.data.error.message : null;
 }
 
-export type OpenRouterResult = { output: unknown; provider: string | null; latencyMs: number; usedZdr: boolean };
+export type OpenRouterResult = {
+  output: unknown;
+  provider: string | null;
+  latencyMs: number;
+  usedZdr: boolean;
+  privacyMode: "ZDR" | "DATA_COLLECTION_DENY";
+  fallbackReason: OpenRouterFailureCode | null;
+};
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 export async function interpretWithOpenRouter(
@@ -103,7 +110,14 @@ export async function interpretWithOpenRouter(
       if (!choice.message.content) throw new OpenRouterError("MALFORMED", "The model returned no structured content");
       let output: unknown;
       try { output = JSON.parse(choice.message.content); } catch { throw new OpenRouterError("MALFORMED", "The model returned malformed JSON"); }
-      return { output, provider: parsed.data.provider ?? null, latencyMs: Date.now() - started, usedZdr: attempt === 0 };
+      return {
+        output,
+        provider: parsed.data.provider ?? null,
+        latencyMs: Date.now() - started,
+        usedZdr: attempt === 0,
+        privacyMode: attempt === 0 ? "ZDR" : "DATA_COLLECTION_DENY",
+        fallbackReason: attempt === 0 ? null : lastError?.code ?? "PROVIDER_UNAVAILABLE",
+      };
     } catch (error) {
       if (error instanceof OpenRouterError) throw error;
       const timedOut = error instanceof Error && error.name === "AbortError";

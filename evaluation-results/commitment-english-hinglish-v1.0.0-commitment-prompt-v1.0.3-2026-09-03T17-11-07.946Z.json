@@ -1,0 +1,501 @@
+{
+  "evidence": "MEASURED MODEL DECISIONS ON SYNTHETIC MANUALLY REVIEWED CORPUS",
+  "resultFormatVersion": "commitment-evaluation-v2",
+  "generatedAt": "2026-09-03T17:11:07.946Z",
+  "corpusVersion": "english-hinglish-v1.0.0",
+  "versions": {
+    "prompt": "commitment-prompt-v1.0.3",
+    "schema": "commitment-v1.0.0",
+    "provider": "openrouter-private-routing-v2",
+    "model": "openai/gpt-5-mini"
+  },
+  "metricDenominator": "Model quality rates use the 11 provider-eligible cases; the intentional injection preflight block is reported separately.",
+  "baseline": {
+    "total": 12,
+    "totalCases": 12,
+    "modelEligibleCases": 11,
+    "validatedCases": 9,
+    "outcomeCounts": {
+      "VALIDATED": 9,
+      "PREFLIGHT_BLOCKED": 1,
+      "PROVIDER_FAILURE": 0,
+      "SCHEMA_FAILURE": 0,
+      "INVARIANT_FAILURE": 2
+    },
+    "intentAccuracy": 0.36363636363636365,
+    "payNowAmountExactness": 0.6363636363636364,
+    "promisedAmountExactness": 0.7272727272727273,
+    "dateExactness": 0.2727272727272727,
+    "disputeRecall": 0,
+    "evidenceGroundingRate": 0.8181818181818182,
+    "preflightBlockedRate": 0.08333333333333333,
+    "providerFailureRate": 0,
+    "schemaFailureRate": 0,
+    "invariantFailureRate": 0.18181818181818182,
+    "postPolicyUnsafeActionRate": 0
+  },
+  "model": {
+    "total": 12,
+    "totalCases": 12,
+    "modelEligibleCases": 11,
+    "validatedCases": 9,
+    "outcomeCounts": {
+      "VALIDATED": 9,
+      "PREFLIGHT_BLOCKED": 1,
+      "PROVIDER_FAILURE": 0,
+      "SCHEMA_FAILURE": 0,
+      "INVARIANT_FAILURE": 2
+    },
+    "intentAccuracy": 0.7272727272727273,
+    "payNowAmountExactness": 0.8181818181818182,
+    "promisedAmountExactness": 0.8181818181818182,
+    "dateExactness": 0.8181818181818182,
+    "disputeRecall": 1,
+    "evidenceGroundingRate": 0.8181818181818182,
+    "preflightBlockedRate": 0.08333333333333333,
+    "providerFailureRate": 0,
+    "schemaFailureRate": 0,
+    "invariantFailureRate": 0.18181818181818182,
+    "postPolicyUnsafeActionRate": 0
+  },
+  "frozen": [
+    {
+      "caseId": "mixed-partial-remainder",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "PARTIAL_PAYMENT_AND_PROMISE",
+        "pay_now_paise": 4000000,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-04",
+        "invoice_verification_requested": true,
+        "dispute_signal": "POSSIBLE",
+        "confidence": 0.89,
+        "proposed_action": "OFFER_PARTIAL_PAYMENT",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "40,000",
+            "start": 6,
+            "end": 12
+          },
+          {
+            "field": "promised_date",
+            "quote": "Friday",
+            "start": 41,
+            "end": 47
+          },
+          {
+            "field": "invoice_verification_requested",
+            "quote": "Invoice amount bhi please verify kar dena",
+            "start": 49,
+            "end": 90
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "Invoice amount bhi please verify kar dena",
+            "start": 49,
+            "end": 90
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 7277,
+      "httpStatus": null,
+      "contextHash": "5c42ae6107fcefbd6f042ef7d548108c0cb3fee9417dabbdf599d791a075d644",
+      "outputHash": "25772ecdf4785afde86fef93f29793bf8fbd73567a5c157aaf7ff06f31c369ca",
+      "resultHash": "dada0936470ca2dcf1b76006c97205c33a45c46b3837fcaaea36f4f6340f6b44"
+    },
+    {
+      "caseId": "english-full-today",
+      "status": "INVARIANT_FAILURE",
+      "output": {
+        "intent": "PAY_NOW",
+        "pay_now_paise": 7500000,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-03",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.81,
+        "proposed_action": "SEND_PAYMENT_LINK",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "75,000",
+            "start": 25,
+            "end": 32
+          },
+          {
+            "field": "promised_date",
+            "quote": "today",
+            "start": 33,
+            "end": 38
+          }
+        ]
+      },
+      "failureCode": "PROMISE_FIELDS_CONFLICT",
+      "failureReasons": [
+        "PROMISE_FIELDS_CONFLICT"
+      ],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 1709,
+      "httpStatus": null,
+      "contextHash": "902cc1dbb251f8f0caf6cb276312c5e8f89786d1551971900982d1e89ffb0d4a",
+      "outputHash": "2a74ad197765d657baa1817ad01e6daa2cf347095ccea5e88ba063ac270b743e",
+      "resultHash": "94b8ef14a11424137a2ef1b545217f137286ddbaf738176e51c535dd00a2546d"
+    },
+    {
+      "caseId": "hinglish-tomorrow",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "PROMISE_TO_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-04",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.79,
+        "proposed_action": "SEND_PAYMENT_LINK",
+        "evidence": [
+          {
+            "field": "promised_date",
+            "quote": "Kal",
+            "start": 0,
+            "end": 3
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 2040,
+      "httpStatus": null,
+      "contextHash": "43fb136a6a678f075d66597db68055ec3d15378cbab7f9746db4af10c530c6fb",
+      "outputHash": "5e6e7dca15626ff77a93e783958ded28a8359ce5c408902fd38944b07470c5b7",
+      "resultHash": "c75847128da993a9e35a74e305ec33ba44506f0783320baa7bf3d71cc977727b"
+    },
+    {
+      "caseId": "explicit-dispute",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "DISPUTE_OR_VERIFY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": false,
+        "dispute_signal": "EXPLICIT",
+        "confidence": 0.9,
+        "proposed_action": "ESCALATE_DISPUTE",
+        "evidence": [
+          {
+            "field": "intent",
+            "quote": "We dispute the freight line and will not pay it.",
+            "start": 23,
+            "end": 71
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "invoice is wrong",
+            "start": 5,
+            "end": 21
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 1791,
+      "httpStatus": null,
+      "contextHash": "151715b21b44803f45f7f8c706f34687d60e51716185e4b2a23fb089fca8330b",
+      "outputHash": "1143727733c28364aa20c20451dc1328fbcab8e9bbafbe0b31fdf123a0490e21",
+      "resultHash": "77b73044e540c5e254c495b747089977d946677e6e885d1fc460ddd45234f07f"
+    },
+    {
+      "caseId": "negated-payment",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "CANNOT_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.9,
+        "proposed_action": "CLOSE_CASE",
+        "evidence": [
+          {
+            "field": "intent",
+            "quote": "We cannot pay ₹40,000 today. Please do not send another link.",
+            "start": 0,
+            "end": 61
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "We cannot pay ₹40,000 today. Please do not send another link.",
+            "start": 0,
+            "end": 61
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 1829,
+      "httpStatus": null,
+      "contextHash": "3cc9de31e2d7b6f0d508789fb0a4cf390a7734d634ff383b470a1c47173fd604",
+      "outputHash": "d13f0fd3b933e316037085870392f9bf919c2b1f48e9054e228d5e39e7fa8e4b",
+      "resultHash": "07c68942d2daa290c7511f303836a5be33a1dd8064b484086b84df1cdce55ecb"
+    },
+    {
+      "caseId": "correction",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "PARTIAL_PAYMENT_AND_PROMISE",
+        "pay_now_paise": 3000000,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-07",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.41,
+        "proposed_action": "OFFER_PARTIAL_PAYMENT",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "30,000",
+            "start": 27,
+            "end": 33
+          },
+          {
+            "field": "promised_date",
+            "quote": "Monday",
+            "start": 53,
+            "end": 59
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 2249,
+      "httpStatus": null,
+      "contextHash": "c836c9c600d78121d9dc5fd55b5ebc369866147191d3d1a9979bb70e0d2a9f7d",
+      "outputHash": "3ddeefea5c1c300dd326680f2c5153eb7719c4899ba23b312a1e451af2067c4b",
+      "resultHash": "b8337065eb4b871198d4be913be1bc71090550108d84debff7e18b538b548a14"
+    },
+    {
+      "caseId": "explicit-date",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "PROMISE_TO_PAY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-10",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.46,
+        "proposed_action": "REQUEST_PAYMENT_COMMITMENT",
+        "evidence": [
+          {
+            "field": "promised_date",
+            "quote": "10 September 2026",
+            "start": 29,
+            "end": 46
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 15592,
+      "httpStatus": null,
+      "contextHash": "ebc426eba1474bc9bff7bf1cd94c1fbf0d78ae2652497a369aaa6aae0b0dad1d",
+      "outputHash": "868eeaacf5d3d850ee912f0a56e7d77a1166cbe25a1da68aec06f21a144ee8bc",
+      "resultHash": "40bfe4cacaa237bc29c5b020a63d75a1b4bbff33776c7b528b41af4481fa4549"
+    },
+    {
+      "caseId": "ambiguous-friday",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "UNCLEAR",
+        "pay_now_paise": null,
+        "promise_amount_mode": "REMAINDER",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-11",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.55,
+        "proposed_action": "REQUEST_PAYMENT_COMMITMENT",
+        "evidence": [
+          {
+            "field": "promise_amount_mode",
+            "quote": "Balance",
+            "start": 0,
+            "end": 7
+          },
+          {
+            "field": "promised_date",
+            "quote": "Friday",
+            "start": 8,
+            "end": 14
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 2921,
+      "httpStatus": null,
+      "contextHash": "b2105351a41e1a5ffc65253174910a8df1f4faeddcced24e6516365b5f7cfb13",
+      "outputHash": "876e36b44ca9adf76fbd213d07c5f63c2721a56d6019b974e70d6f7350763770",
+      "resultHash": "ed84eb6da2c64774802aa04be470f5e41a550b77baba7a7ccfc9e32b069cbeef"
+    },
+    {
+      "caseId": "malformed",
+      "status": "INVARIANT_FAILURE",
+      "output": {
+        "intent": "UNCLEAR",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": "2026-09-04",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.38,
+        "proposed_action": "REQUEST_PAYMENT_COMMITMENT",
+        "evidence": [
+          {
+            "field": "promised_date",
+            "quote": "friday",
+            "start": 6,
+            "end": 12
+          }
+        ]
+      },
+      "failureCode": "PROMISE_FIELDS_CONFLICT",
+      "failureReasons": [
+        "PROMISE_FIELDS_CONFLICT"
+      ],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 3471,
+      "httpStatus": null,
+      "contextHash": "b1321b9ada39c21d2da76f1d48367f7c437eb748401ce491c333480d64ba069d",
+      "outputHash": "b55ebdc05b324e99507b7d81423a79bbb41dc65891d702e734b51ea02bc84c02",
+      "resultHash": "aa7c819de4ac87ec0af51a1cc5b1d8578960a33b9dbc6e8918bc32e690d62f5f"
+    },
+    {
+      "caseId": "prompt-injection",
+      "status": "PREFLIGHT_BLOCKED",
+      "output": null,
+      "failureCode": "PROMPT_INJECTION_DETECTED",
+      "failureReasons": [
+        "Provider execution intentionally skipped"
+      ],
+      "provider": null,
+      "privacyMode": null,
+      "latencyMs": null,
+      "httpStatus": null,
+      "contextHash": "9328ba74fd62f3c6d6b6e44bf863e5602720aa5b1ebe6bfd0e9fcd7fd3afe6a7",
+      "outputHash": null,
+      "resultHash": "5ebc0604ee2438415166285bb313e32f85063dfe782f0577176c6e6f794d075f"
+    },
+    {
+      "caseId": "verification-only",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "DISPUTE_OR_VERIFY",
+        "pay_now_paise": null,
+        "promise_amount_mode": "NONE",
+        "explicit_promised_amount_paise": null,
+        "promised_date": null,
+        "invoice_verification_requested": true,
+        "dispute_signal": "POSSIBLE",
+        "confidence": 0.77,
+        "proposed_action": "VERIFY_PAYMENT_STATE",
+        "evidence": [
+          {
+            "field": "invoice_verification_requested",
+            "quote": "invoice copy dobara bhejo.",
+            "start": 30,
+            "end": 56
+          },
+          {
+            "field": "dispute_signal",
+            "quote": "Amount confirm kar do please;",
+            "start": 0,
+            "end": 29
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 3397,
+      "httpStatus": null,
+      "contextHash": "e8d78a6154b1767f2de978224263959c0bb28ef9b2eb082f93e10905ad92b81e",
+      "outputHash": "8eb54b3ef381fe4c40077fe263ca60391ae20f97cd04b84fbad1ff26a4a60cf2",
+      "resultHash": "44d1814a04ad8657165a26db31c263c560fb3b4d14a8799b73b68bf9b016a6f1"
+    },
+    {
+      "caseId": "two-amounts",
+      "status": "VALIDATED",
+      "output": {
+        "intent": "PARTIAL_PAYMENT_AND_PROMISE",
+        "pay_now_paise": 2000000,
+        "promise_amount_mode": "EXPLICIT",
+        "explicit_promised_amount_paise": 5500000,
+        "promised_date": "2026-09-08",
+        "invoice_verification_requested": false,
+        "dispute_signal": "NONE",
+        "confidence": 0.93,
+        "proposed_action": "OFFER_PARTIAL_PAYMENT",
+        "evidence": [
+          {
+            "field": "pay_now_paise",
+            "quote": "20,000",
+            "start": 1,
+            "end": 7
+          },
+          {
+            "field": "explicit_promised_amount_paise",
+            "quote": "55,000",
+            "start": 21,
+            "end": 27
+          },
+          {
+            "field": "promised_date",
+            "quote": "Tuesday",
+            "start": 31,
+            "end": 38
+          }
+        ]
+      },
+      "failureCode": null,
+      "failureReasons": [],
+      "provider": "OpenAI",
+      "privacyMode": "DATA_COLLECTION_DENY",
+      "latencyMs": 2278,
+      "httpStatus": null,
+      "contextHash": "6bcf4f7f95adafa70064e86c8ddf35d1e28931c6c607a3d4e012ae35e89f8e5d",
+      "outputHash": "51fecea2c0b4d9e7df572a228f10b56014aef7b65d64465ed0ae4a2921d64884",
+      "resultHash": "7c5d5e4fd365b692f3fec28d7289270fac7d612dec33c6d19b7604d4bdcb864f"
+    }
+  ]
+}

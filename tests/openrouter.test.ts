@@ -17,6 +17,8 @@ describe("OpenRouter adapter", () => {
     let requestBody: Record<string, unknown> = {};
     const result = await interpretWithOpenRouter(context, { apiKey: "test-key", fetchImpl: async (_url, init) => { requestBody = JSON.parse(String(init?.body)); return ok(); } });
     expect(result.output).toEqual(output);
+    expect(result.privacyMode).toBe("ZDR");
+    expect(result.fallbackReason).toBeNull();
     expect(requestBody.model).toBe("openai/gpt-5-mini");
     expect(requestBody).not.toHaveProperty("tools");
     expect(requestBody.provider).toEqual({ require_parameters: true, data_collection: "deny", zdr: true });
@@ -39,6 +41,8 @@ describe("OpenRouter adapter", () => {
     const bodies: Array<Record<string, unknown>> = [];
     const result = await interpretWithOpenRouter(context, { apiKey: "test-key", fetchImpl: async (_url, init) => { bodies.push(JSON.parse(String(init?.body))); return bodies.length === 1 ? new Response("{}", { status: 429 }) : ok(); } });
     expect(result.usedZdr).toBe(false);
+    expect(result.privacyMode).toBe("DATA_COLLECTION_DENY");
+    expect(result.fallbackReason).toBe("RATE_LIMITED");
     expect(bodies[1].provider).toEqual({ require_parameters: true, data_collection: "deny", zdr: false });
   });
 

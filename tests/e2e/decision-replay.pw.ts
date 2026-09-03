@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 test("cached replay → approval → Razorpay handoff → verified promise and queue UI", async ({ page }) => {
+  const resetResponse = await page.request.post("/api/demo/reset");
+  expect(resetResponse.ok()).toBe(true);
   await page.goto("/collection");
   await expect(page.getByRole("heading", { name: /Interpret\. Approve\./ })).toBeVisible();
   await page.getByRole("button", { name: "Use cached replay" }).click();
@@ -9,6 +11,12 @@ test("cached replay → approval → Razorpay handoff → verified promise and q
   await expect(page.getByText("APPROVAL REQUIRED", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Approve bounded action" }).click();
   await expect(page.getByText(/Human approved/)).toBeVisible();
+  await page.getByRole("button", { name: "Preview recorded fallback" }).click();
+  await expect(page.getByText("RECORDED SIMULATION — NO LEDGER WRITE", { exact: true })).toBeVisible();
+  await expect(page.getByText(/does not invoke Razorpay, verify a signature, write the ledger/)).toBeVisible();
+
+  const unchangedCaseResponse = await page.request.get("/api/recovery-cases/rc_m7_inv_003");
+  expect((await unchangedCaseResponse.json()).recoveryCase.amountRecovered).toBe(0);
 
   const caseResponse = await page.request.get("/api/recovery-cases/rc_m7_inv_003");
   const casePayload = await caseResponse.json();
@@ -32,7 +40,7 @@ test("cached replay → approval → Razorpay handoff → verified promise and q
   await page.getByRole("button", { name: "Create approved Payment Link" }).click();
   await expect(page.getByRole("link", { name: /Open Razorpay Checkout/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "₹35,000 protected" })).toBeVisible();
-  await expect(page.getByText("WAIT PROTECTED", { exact: true })).toBeVisible();
-  await expect(page.getByText("ACT NOW", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".after-grid").getByText("WAIT PROTECTED", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".after-grid").getByText("ACT NOW", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/separate from the synthetic Recovery Frontier/)).toBeVisible();
 });

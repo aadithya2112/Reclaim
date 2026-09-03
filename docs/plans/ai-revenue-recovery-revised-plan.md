@@ -560,7 +560,7 @@ This is the first major, unmistakably AI-focused product milestone. It must show
 
 **Done when:** a judge can watch unstructured customer text change the bounded recovery plan, see deterministic policy demand approval, complete a verified Razorpay Test Mode partial payment, observe the exact ₹75,000 → ₹35,000 balance transition once, see the remaining promise protected and the operational contact slot reallocated, and replay every step with provenance.
 
-### Milestone 9 — Judge-facing workspace
+### Milestone 9 — Judge-facing workspace — IMPLEMENTATION COMPLETE
 
 - Unify the existing Command Center, the new operational Decision Replay, and Evidence Lab without adding separate role-based portals.
 - Add provenance badges, metric definitions, and limitations.
@@ -570,15 +570,21 @@ This is the first major, unmistakably AI-focused product milestone. It must show
 
 **Done when:** the complete story remains coherent even if the external payment step fails.
 
-### Remaining roadmap after Milestone 8
+Milestone 9 was completed on 2026-09-03. A shared four-step journey now connects the Recovery Frontier, operational Decision Replay, Razorpay proof, and Evidence Lab. The UI adds evidence-provenance badges, exact metric definitions, explicit limitations, persisted OpenRouter privacy posture, an input- and context-bound cached model replay, and a recorded-payment preview labelled **RECORDED SIMULATION — NO LEDGER WRITE**. That preview invokes no provider, verifies no signature, mutates no ledger state, and changes no recovery metric.
 
-Milestone 8 implementation was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. Lint, typecheck, 50 unit tests, 5 disposable-database integration tests, the Chromium operator-flow test, and the production build passed. The authenticated OpenRouter smoke succeeded, and the authenticated Razorpay smoke verified read-only Test Mode access.
+The operational demo reset is a narrow transaction over only `rc_m1_inv_001`, `rc_m1_inv_002`, and `rc_m7_inv_003`. A transaction-local database flag permits deletion from otherwise immutable demo history only for those IDs; unrelated operational records, schema, and external Razorpay Test Mode objects remain untouched. Development enables the reset; a production-mode demo requires explicit `DEMO_RESET_ENABLED=true`.
 
-The remaining acceptance and reliability work is tracked in [Todo.md](../../Todo.md). In particular, the hosted ₹40,000 Razorpay Checkout-to-public-webhook run was not completed; only the signed-payload integration path was exercised. The ZDR-preferred OpenRouter smoke found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback. The checked-in authenticated corpus run remains measured model-decision evidence on synthetic messages, not merchant recovery evidence, and currently records fail-closed reliability gaps that must not be presented as successful interpretations.
+### Remaining roadmap after Milestone 9
 
-One product milestone remains, alongside the acceptance and reliability backlog above:
+Milestone 8 implementation was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. Milestone 9 then consolidated and hardened that work without adding product breadth.
 
-1. **Milestone 9:** consolidate, reset, harden, and rehearse the judge-facing experience.
+The remaining acceptance work is tracked in [Todo.md](../../Todo.md). The hosted ₹40,000 Razorpay Checkout-to-public-webhook run was not completed; only authenticated read-only Test Mode access and the signed-payload local integration path were exercised. The single ZDR-preferred smoke again found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback. The application persists and displays that fallback posture rather than implying ZDR.
+
+The final `commitment-prompt-v1.0.3` corpus artifact records all 12 outcomes explicitly. Of 11 provider-eligible cases, 9 validated; intent accuracy was 72.7%; pay-now amount, promised amount, date, and evidence grounding were each 81.8%; dispute recall was 100%. The injection case was blocked preflight without a provider call. Provider and schema failures were zero. `english-full-today` and `malformed` failed deterministic invariants with `PROMISE_FIELDS_CONFLICT`, and post-policy unsafe action rate remained 0%. These are measured model decisions on synthetic messages, not merchant recovery evidence.
+
+No product milestone remains for the hackathon scope. The user-assisted hosted Test Mode acceptance is the only outstanding proof.
+
+Final verification on 2026-09-03 passed lint, typecheck, 55 non-database tests, six disposable-database integration tests, one Chromium judge-journey test, and the production build. Desktop and narrow responsive views of the Command Center, Decision Replay, cached provenance, and recorded fallback were visually inspected. The final local fixture state was reset after inspection.
 
 Model-driven batch ranking, autonomous concessions, generated outbound messaging, production communication channels, calibrated risk/uplift scores, natural-language policy compilation, cross-product Razorpay adapters, document verification, and autonomous multi-agent negotiation are explicitly deferred until after the hackathon core is complete.
 
@@ -640,7 +646,7 @@ Expected revenue impact: Converts an ambiguous response into an actionable parti
 How impact can be measured: Compare frozen model interpretations with a deterministic parser under the same policy, contact budget, and paired synthetic outcome bank; separately demonstrate collection with a verified Razorpay Test Mode webhook.
 Baseline: Razorpay-native Payment Link reminders plus a deterministic keyword/date parser and the fixed finance SOP.
 Evidence:
-  Razorpay Test Mode: Proves hosted partial collection, signed event processing, stable correlation, idempotency, and balance reconciliation; it does not prove real revenue uplift.
+  Razorpay Test Mode: Local signed-payload tests prove webhook validation, idempotency, correlation, and balance reconciliation. A user-assisted hosted partial collection through a public webhook remains pending and would prove the end-to-end hosted path; neither mode proves real revenue uplift.
   Synthetic receivables: Supply the reviewed bilingual interpretation corpus and comparable receivable contexts.
   Simulated customer behavior: Supplies frozen downstream outcomes for incremental-recovery comparison.
   Measured agent outcomes: Supply structured interpretations, grounded evidence, proposals, policy decisions, approval outcomes, and queue changes.
@@ -705,7 +711,15 @@ Waiting protects active promises, avoids duplicate collection during ambiguous p
 
 ### “Is that money real?”
 
-The live Payment Link payment is a verified Razorpay Test Mode event, not real money. The portfolio result is synthetic and labelled. The demo proves integration correctness and strategy behavior, not real merchant uplift.
+The portfolio result is synthetic and labelled. A signed Razorpay event is Test Mode integration evidence, not real money or merchant uplift. The checked-in automated proof uses representative signed payloads; the hosted Checkout-to-public-webhook run is still pending. The recorded fallback is only an illustrated rehearsal path and writes no ledger state.
+
+### “Was Zero Data Retention verified?”
+
+No. The 2026-09-03 smoke found no eligible ZDR route. The bounded request succeeded with `data_collection: deny`, and that exact privacy posture is persisted and displayed. ZDR is a preference, not a safety or product dependency.
+
+### “Can the fallback be mistaken for payment proof?”
+
+No. It is labelled **RECORDED SIMULATION — NO LEDGER WRITE**, does not invoke Razorpay, has no verified signature or payment/event ID, and cannot change the authoritative balance, promise, queue, or metrics.
 
 ## 18. Three-minute demo
 
@@ -714,8 +728,8 @@ The live Payment Link payment is a verified Razorpay Test Mode event, not real m
 3. **Decision attribution — 25 seconds:** open one ACT NOW case and one protected WAIT case to show why the portfolio differs.
 4. **Live customer response — 35 seconds:** paste the ambiguous English/Hinglish message and show structured AI interpretation.
 5. **Policy and approval — 20 seconds:** possible dispute triggers human review; approve the safe partial-payment action.
-6. **Razorpay collection — 35 seconds:** complete the Test Mode partial payment or use the prepared fallback.
-7. **Verified closure loop — 20 seconds:** show signed event, exact balance reduction, protected promise, contact-slot reallocation, and audit timeline.
+6. **Razorpay collection — 35 seconds:** in a user-assisted session, complete the Test Mode partial payment. If external delivery is unavailable, open the recorded fallback and say explicitly that it is a no-ledger simulation.
+7. **Closure loop — 20 seconds:** on the hosted branch, show signed event, exact balance reduction, protected promise, contact-slot reallocation, and audit timeline. On the fallback branch, present the same transition only as an illustration of expected behavior.
 8. **Close — 10 seconds:** “Recoup knows when to act, when to wait, and can prove every recovery decision.”
 
 ## 19. Definition of winning completion

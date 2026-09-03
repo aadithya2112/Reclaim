@@ -139,6 +139,7 @@ export const aiDecisionRuns = pgTable(
     providerPolicyVersion: text("provider_policy_version").notNull(),
     modelId: text("model_id").notNull(),
     providerName: text("provider_name"),
+    privacyMode: text("privacy_mode"),
     outputHash: text("output_hash"),
     validatedOutput: jsonb("validated_output"),
     failureCode: text("failure_code"),

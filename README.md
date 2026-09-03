@@ -1,12 +1,12 @@
 # Recoup — Razorpay Receivables Recovery Spike
 
-The implementation planned through Milestone 8 is complete. The operational flow starts with an unstructured English/Hinglish commitment, freezes a grounded structured model proposal, applies deterministic policy and explicit human approval, hands the bounded action to a partial-enabled Razorpay Test Mode Payment Link, and lets only signed webhooks advance money, activate the authoritative remainder promise, and reallocate the operational queue.
+The implementation planned through Milestone 9 is complete. One coherent judge journey now connects the synthetic Recovery Frontier, case-level Decision Replay, the operational English/Hinglish commitment flow, Razorpay Test Mode handoff, and the Evidence Lab. The operational path freezes a grounded model proposal, applies deterministic policy and explicit human approval, and lets only a signed webhook advance money, activate the authoritative remainder promise, and reallocate the queue.
 
-Automated verification is green: lint, typecheck, 50 unit tests, 5 disposable-database integration tests, the Chromium operator-flow test, and the production build passed on 2026-09-03. Authenticated OpenRouter and read-only Razorpay Test Mode smokes also passed. The hosted ₹40,000 checkout-to-public-webhook acceptance run has not yet been performed, the preferred OpenRouter ZDR route was unavailable, and the measured model corpus exposed cases that still fail closed. See [Todo.md](Todo.md) for the exact open verification and reliability work.
+The hosted ₹40,000 checkout-to-public-webhook acceptance run has deliberately not been performed and remains the only external acceptance item. The 2026-09-03 OpenRouter smoke succeeded through the `data_collection: deny` fallback because no eligible ZDR route was available. The final measured corpus preserves two invariant failures and reports 0% unsafe post-policy actions rather than presenting them as successes. See [Todo.md](Todo.md) for the exact evidence boundary.
 
-One planned milestone remains:
+Verification on 2026-09-03 passed: lint, typecheck, 55 non-database tests, six disposable-database integration tests, one Chromium judge-journey test, and the production build. The Command Center, Decision Replay, cached provenance, recorded fallback, and narrow responsive layouts were visually inspected after the automated run.
 
-1. **Milestone 9 — Judge-facing hardening:** unify Decision Replay and the Evidence Lab with the existing Command Center, add deterministic reset controls, and rehearse the three-minute demo.
+The remaining proof is a later user-assisted hosted Razorpay Test Mode checkout through a public webhook. The checked-in recorded-payment fallback is a rehearsal aid only: it is labelled simulated, invokes no provider, verifies no signature, writes no ledger state, and changes no recovery metric.
 
 Milestone 8 deliberately keeps `recoup-hybrid` as the deterministic, reproducible Recovery Frontier strategy. Live model inference is limited to unstructured customer-response interpretation, where AI changes a bounded recovery decision and remains visibly subordinate to policy, approval, and verified Razorpay webhooks.
 
@@ -90,7 +90,7 @@ Named development/held-out comparisons run every declared seed and write a suite
 
 `contactCostMultiplier` is now an auditable synthetic relationship-burden metric (never subtracted from recovered money). The relationship-sensitive scenario applies an additional disclosed multiplier to observable long-history accounts.
 
-`recoup-agent` remains replay-only in the pure simulator. The operational Decision Replay uses a server-side OpenRouter adapter pinned in code to `openai/gpt-5-mini`, strict JSON Schema, compatible-provider routing, `data_collection: deny`, ZDR preference, a 30-second timeout, and at most one transient retry. It freezes context/output hashes and prompt/schema/provider/model versions. The model receives only observable text/context as untrusted data, receives no tools, and never sees profiles, outcome banks, future results, credentials, or payment truth. Malformed, refused, truncated, unavailable, or injection-like input fails closed to manual review. A fixture-specific fallback is always labelled **CACHED MODEL REPLAY**.
+`recoup-agent` remains replay-only in the pure simulator. The operational Decision Replay uses a server-side OpenRouter adapter pinned in code to `openai/gpt-5-mini`, strict JSON Schema, compatible-provider routing, `data_collection: deny`, ZDR preference, a 30-second timeout, and at most one transient retry. It freezes context/output hashes and prompt/schema/provider/model versions. The model receives only observable text/context as untrusted data, receives no tools, and never sees profiles, outcome banks, future results, credentials, or payment truth. Malformed, refused, truncated, unavailable, or injection-like input fails closed to manual review. A fixture-specific fallback is input-bound and always labelled **CACHED MODEL REPLAY / NO PROVIDER CALL**. Live successes persist either **ZDR ROUTE** or **DATA COLLECTION: DENY** as the actual privacy posture.
 
 ### Live commitment interpreter and recovery handoff (Milestone 8)
 
@@ -98,11 +98,11 @@ The `/collection` workspace is now the operational Decision Replay. It persists 
 
 For the canonical `INV-003` response, the model may propose ₹40,000 now and `REMAINDER` on Friday. The promise has no authoritative amount until a signed webhook verifies cumulative payment of exactly ₹40,000. Application arithmetic then computes ₹75,000 − ₹40,000 = ₹35,000, activates protection, moves `INV-003` to `WAIT_PROTECTED`, and promotes the highest-priority `DEFERRED_CAPACITY` case. These Test Mode operational facts never mutate the synthetic Recovery Frontier.
 
-The manually reviewed `english-hinglish-v1.0.0` corpus covers amounts, relative/absolute dates, disputes, negation, corrections, malformed language, and injection. `bun run evaluate:commitments --live` writes an immutable-by-convention, version/hash-bound result using exclusive file creation. The checked-in measured run is labelled as model decisions on a synthetic corpus; it is not a recovery-outcome claim.
+The manually reviewed `english-hinglish-v1.0.0` corpus covers amounts, relative/absolute dates, disputes, negation, corrections, malformed language, and injection. `bun run evaluate:commitments --live` writes an immutable-by-convention, version/hash-bound result using exclusive file creation. The final checked-in `commitment-prompt-v1.0.3` run explicitly records all 12 outcomes: 9/11 provider-eligible cases validated, one injection case was blocked before provider execution, two outputs failed deterministic invariants, and provider/schema failures were zero. Intent was 72.7%, pay-now amount, promised amount, date, and evidence grounding were each 81.8%, dispute recall was 100%, and post-policy unsafe action rate remained 0%. These are measured model decisions on synthetic messages, not recovery outcomes.
 
 OpenRouter references: [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection), [`openai/gpt-5-mini`](https://openrouter.ai/openai/gpt-5-mini), and [zero data retention](https://openrouter.ai/docs/guides/features/zdr).
 
-### Recovery Command Center (Milestone 6)
+### Unified judge workspace (Milestones 6 and 9)
 
 Open `http://localhost:3000` to use the judge-facing development benchmark:
 
@@ -110,7 +110,9 @@ Open `http://localhost:3000` to use the judge-facing development benchmark:
 - **Scenario and capacity controls:** switch among the four disclosed scenarios and change daily contact/reviewer ceilings. Results are generated locally, cached in process, and require no database, model key, Razorpay credential, or network service.
 - **Decision queues:** inspect capacity-selected ACT NOW work, policy/model-protected WAIT decisions, and eligible work deferred by exhausted capacity.
 - **Decision replay:** view the bounded proposal, observable supporting factors, confidence, deterministic policy outcome, compact audit timeline, the native baseline's action on the same case, and the paired per-case simulated recovery difference.
-- **Evidence boundary:** identifies synthetic receivables, simulated outcomes, measured decisions, and the separate Razorpay Test Mode proof. Reproducibility hashes are available without exposing hidden environment state to the browser.
+- **Evidence Lab:** identifies synthetic receivables, simulated outcomes, measured decisions, and the separate Razorpay Test Mode proof; defines every headline metric; discloses limitations; and exposes reproducibility hashes without serializing hidden environment state.
+- **Judge journey:** a shared four-step rail connects Recovery Frontier → operational Decision Replay → Razorpay proof → Evidence Lab without creating separate role portals.
+- **Resilient rehearsal:** the input-bound cached interpretation is labelled as no provider call. A separate recorded payment preview illustrates the expected ₹75,000 → ₹35,000 transition and queue reallocation but cannot mutate financial or benchmark state.
 
 The dashboard API is `GET /api/recovery-frontier?scenario=standard&contacts=20&reviews=4`. It returns a compact observable projection only; hidden customer traits and the potential-outcome bank are never serialized into the response. Dashboard runs use the development seed, never the held-out evaluation seeds.
 
@@ -139,6 +141,7 @@ Update `.env.local` before starting the app:
 
 ```env
 DATABASE_URL=postgresql://recovery:recovery@localhost:5432/recovery
+DEMO_RESET_ENABLED=false
 APP_URL=https://your-public-zrok-url.example
 RAZORPAY_KEY_ID=rzp_test_replace_me
 RAZORPAY_KEY_SECRET=replace_me
@@ -146,7 +149,7 @@ RAZORPAY_WEBHOOK_SECRET=replace_me
 OPENROUTER_API_KEY=replace_me
 ```
 
-Only a key beginning with `rzp_test_` is accepted. Never put real credentials in `.env.example` or commit `.env.local`.
+Only a key beginning with `rzp_test_` is accepted. `DEMO_RESET_ENABLED` is unnecessary in development; set it to `true` only when an intentional production-mode demo deployment must expose the scoped reset. Never put real credentials in `.env.example` or commit `.env.local`.
 
 ## Expose the webhook
 
@@ -166,17 +169,27 @@ Copy the public HTTPS URL into `APP_URL` and restart `bun dev`. In the Razorpay 
 
 Razorpay cannot deliver a webhook directly to localhost and documents zrok as its local testing route. See [Validate and Test Webhooks](https://razorpay.com/docs/webhooks/validate-test/?preferred-country=IN).
 
-## Run the recovery demo
+## Three-minute judge demo
 
-1. Open `http://localhost:3000/collection` and confirm `INV-003` is `ACT_NOW` with ₹75,000 outstanding.
-2. Run the live interpreter, or select **Use cached replay** and verify the prominent cached label.
-3. Inspect ₹40,000 now, Friday remainder mode, invoice-verification ambiguity, exact evidence spans, and `APPROVAL_REQUIRED` policy reasons.
-4. Approve the bounded action. Approval does not change money.
-5. Create the approved Payment Link, open Razorpay-hosted Checkout, and complete an exact ₹40,000 [Test Mode payment](https://razorpay.com/docs/payments/payments/test-card-details/).
-6. Confirm the signed webhook changes outstanding from ₹75,000 to ₹35,000 exactly once, activates the ₹35,000 promise, moves `INV-003` to `WAIT_PROTECTED`, and promotes `INV-001` to `ACT_NOW`.
-7. Inspect the append-only timeline and evidence labels. The synthetic Recovery Frontier remains unchanged.
+Reset first with `bun run demo:reset` or the **Reset demo** control. The transaction removes history only for `INV-001`, `INV-002`, and `INV-003`, restores their fixed local values, preserves schema and unrelated cases, and never calls or cancels anything in Razorpay.
 
-The callback URL only returns the browser to the workspace. It never changes case state. Only a valid signed supported webhook can record money or advance recovery status.
+1. **Problem and Frontier — 45 seconds.** Open `http://localhost:3000`. “We have limited safe contacts; the missing decision is where intervention adds value beyond native reminders.” Move the daily-contact ceiling once and show the paired simulated difference and development-seed range.
+2. **Decision attribution — 25 seconds.** Select one `ACT_NOW` case and one `WAIT / PROTECTED` case. Point to observable factors, deterministic policy, capacity allocation, and the native action on the same synthetic case.
+3. **Operational AI — 45 seconds.** Open **Decision Replay**. Run live AI, or use the exact input-bound cache and call out **NO PROVIDER CALL**. Show ₹40,000 now, `REMAINDER` on Friday, invoice-verification ambiguity, canonical evidence spans, and `APPROVAL_REQUIRED`.
+4. **Bounded handoff — 25 seconds.** Approve the action. State that approval changes no money, then create/reuse the partial-enabled Razorpay Test Mode Payment Link.
+5. **Payment branch — 25 seconds.** In a user-assisted hosted session, complete an exact ₹40,000 [Test Mode payment](https://razorpay.com/docs/payments/payments/test-card-details/). If external checkout/webhook delivery is unavailable, open **Preview recorded fallback** and explicitly read its **RECORDED SIMULATION — NO LEDGER WRITE** badge.
+6. **Close the loop — 15 seconds.** Only on the hosted/signed-webhook branch, show ₹75,000 → ₹35,000 exactly once, the active ₹35,000 promise, `INV-003` protected, and `INV-001` promoted. On the recorded branch, describe these as illustrated expected transitions, not verified facts. Finish in the Evidence Lab: “AI proposes. Policy authorizes. Razorpay verifies money. Recoup reallocates attention.”
+
+The callback URL only returns the browser to the workspace. It never changes case state. Only a valid signed supported webhook can record money or advance recovery status. The hosted checkout/public-webhook proof is still pending and must not be replaced by the recorded fallback.
+
+### Skeptical judge Q&A
+
+- **“Is that recovered money real?”** No. The Frontier is paired synthetic evidence. A signed Razorpay event proves Test Mode integration, not Live Mode money or merchant uplift. The recorded fallback proves neither and writes no ledger state.
+- **“Would they have paid anyway?”** The headline is a paired simulated difference against native reminders on the same synthetic portfolio and outcome bank, not causal uplift. Three development seeds show sensitivity, not statistical significance.
+- **“Razorpay already sends reminders—what is new?”** Razorpay owns collection and native reminders. Recoup owns intervention-versus-wait decisions, business context, guardrails, scarce-capacity allocation, promise protection, and evidence replay.
+- **“Can the model move money or bypass policy?”** No. The model has no tools, every output passes schema and business invariants, sensitive cases require approval, and only a signed webhook can change the ledger.
+- **“Was ZDR verified?”** No eligible ZDR route was available on 2026-09-03. The request succeeded through the disclosed `data_collection: deny` fallback, which is persisted and shown in Decision Replay.
+- **“What still is not proven?”** The hosted ₹40,000 Checkout → public webhook delivery run. Local signed-payload integration, correlation, idempotency, monotonic accounting, queue change, and reset isolation are automated.
 
 ## Commands
 
@@ -201,12 +214,13 @@ bun run simulate --compare --cases 1000 --days 30 --evaluation-set custom --seed
 bun run db:generate     # generate a migration from the schema
 bun run db:migrate      # apply migrations
 bun run db:seed         # idempotently create the operational demo fixtures
+bun run demo:reset      # transactionally restore only the three local demo fixtures
 ```
 
 Database integration tests are opt-in so the normal unit suite does not mutate a developer database. Point `TEST_DATABASE_URL` at a migrated disposable PostgreSQL database:
 
 ```bash
-TEST_DATABASE_URL=postgresql://recovery:recovery@localhost:5432/recovery \
+TEST_DATABASE_URL=postgresql://recovery:recovery@localhost:5432/recovery_test \
   bun run test:integration
 ```
 
@@ -219,5 +233,6 @@ TEST_DATABASE_URL=postgresql://recovery:recovery@localhost:5432/recovery \
 - `GET /api/recovery-frontier` — compact observable Milestone 6 benchmark projection
 - `POST /api/recovery-cases/:id/payment-link` — create or return the case’s existing Test Mode Payment Link
 - `POST /api/webhooks/razorpay` — verify and process Razorpay webhook events
+- `POST /api/demo/reset` — development/demo-only scoped reset for the three seeded operational fixtures; no Razorpay call
 
 The Razorpay integration follows the current [Payment Link creation API](https://razorpay.com/docs/api/payments/payment-links/create-standard/), [Payment Link webhook payload](https://razorpay.com/docs/webhooks/payment-links/?preferred-country=IN), and [webhook signature/idempotency guidance](https://razorpay.com/docs/webhooks/validate-test/?preferred-country=IN).

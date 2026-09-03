@@ -1,9 +1,19 @@
 import { type CommitmentContext, type CommitmentProposal, resolveRelativeDate, validateCommitmentProposal } from "@/lib/commitment-interpreter";
 
 export const DEMO_MESSAGE = "Sir, ₹40,000 aaj kar sakte hain, balance Friday. Invoice amount bhi please verify kar dena.";
+export const DEMO_RECEIVED_AT = "2026-09-03T10:00:00+05:30";
+export const CACHED_COMMITMENT_VERSION = "inv-003-cache-v2";
 
 export function cachedDemoProposal(context: CommitmentContext): CommitmentProposal | null {
-  if (!context.invoiceNumber.startsWith("INV-003") || context.message !== DEMO_MESSAGE) return null;
+  if (
+    !context.invoiceNumber.startsWith("INV-003") ||
+    context.message !== DEMO_MESSAGE ||
+    context.amountDuePaise !== 7_500_000 ||
+    context.amountRecoveredPaise !== 0 ||
+    context.currency !== "INR" ||
+    context.businessTimezone !== "Asia/Kolkata" ||
+    new Date(context.messageReceivedAt).getTime() !== new Date(DEMO_RECEIVED_AT).getTime()
+  ) return null;
   const quote = (field: CommitmentProposal["evidence"][number]["field"], value: string) => {
     const start = context.message.indexOf(value);
     return { field, quote: value, start, end: start + value.length };
@@ -28,5 +38,6 @@ export function cachedDemoProposal(context: CommitmentContext): CommitmentPropos
       quote("proposed_action", "₹40,000 aaj kar sakte hain"),
     ],
   };
-  return validateCommitmentProposal(proposal, context).success ? proposal : null;
+  const validated = validateCommitmentProposal(proposal, context);
+  return validated.success ? validated.data : null;
 }

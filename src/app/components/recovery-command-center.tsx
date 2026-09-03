@@ -134,7 +134,13 @@ export function RecoveryCommandCenter() {
   const incremental = (recoup?.simulatedRecoveredPaise ?? 0) - (native?.simulatedRecoveredPaise ?? 0);
 
   return <main className="command-shell">
-    <header className="command-topbar"><a className="brand" href="#top" aria-label="Recoup command center"><span className="brand-mark">R</span><span>recoup</span></a><nav className="command-nav" aria-label="Primary navigation"><a className="is-active" href="#frontier">Command center</a><a href="#queue">Decision queue</a><a href="#evidence">Evidence</a><Link href="/collection">Test collection ↗</Link></nav><div className="command-environment"><span />Development benchmark</div></header>
+    <header className="command-topbar"><a className="brand" href="#top" aria-label="Recoup command center"><span className="brand-mark">R</span><span>recoup</span></a><nav className="command-nav" aria-label="Primary navigation"><a className="is-active" href="#frontier">Command center</a><a href="#queue">Decision queue</a><a href="#evidence">Evidence Lab</a><Link href="/collection">Decision Replay ↗</Link></nav><div className="command-environment"><span />Synthetic development benchmark</div></header>
+    <nav className="judge-journey judge-journey--command" aria-label="Three-minute judge journey">
+      <a className="is-current" href="#frontier"><span>01</span><strong>Recovery Frontier</strong><small>Paired synthetic</small></a>
+      <Link href="/collection"><span>02</span><strong>Decision Replay</strong><small>Measured + bounded</small></Link>
+      <Link href="/collection#razorpay-proof"><span>03</span><strong>Razorpay proof</strong><small>Test Mode / fallback</small></Link>
+      <a href="#evidence"><span>04</span><strong>Evidence Lab</strong><small>Limits + provenance</small></a>
+    </nav>
     <div className="command-layout" id="top">
       <div className={`command-workspace ${loading && data ? "is-refreshing" : ""}`}>
         <section className="command-heading">
@@ -148,10 +154,10 @@ export function RecoveryCommandCenter() {
         {error && !data ? <div className="command-error"><strong>Benchmark unavailable</strong><span>{error}</span><button type="button" onClick={() => { setLoading(true); setError(null); setRetryNonce((value) => value + 1); }}>Retry</button></div> : null}
         {!data ? <div className="command-loading"><span /><strong>Generating paired benchmark</strong><small>Same portfolio, policy, capacity, and frozen outcome bank.</small></div> : <>
           <section className="command-metrics" aria-label="Portfolio summary">
-            <div><span>Starting outstanding</span><strong>{compactAmount(data.portfolio.startingOutstandingPaise)}</strong><small>{integer.format(data.portfolio.cases)} cases · {data.portfolio.virtualDays} virtual days</small></div>
-            <div><span>Recoup simulated recovery</span><strong>{compactAmount(recoup?.simulatedRecoveredPaise ?? 0)}</strong><small>{percent.format(recoup?.simulatedRecoveryRate ?? 0)} of starting outstanding</small></div>
+            <div><span>Starting outstanding</span><strong>{compactAmount(data.portfolio.startingOutstandingPaise)}</strong><small>{integer.format(data.portfolio.cases)} synthetic cases · {data.portfolio.virtualDays} virtual days</small></div>
+            <div><span>Recoup simulated recovery</span><strong>{compactAmount(recoup?.simulatedRecoveredPaise ?? 0)}</strong><small>{percent.format(recoup?.simulatedRecoveryRate ?? 0)} of synthetic starting outstanding</small></div>
             <div><span>Difference vs native</span><strong className={incremental >= 0 ? "positive" : "negative"}>{incremental >= 0 ? "+" : ""}{compactAmount(incremental)}</strong><small>Paired simulated difference—not causal uplift</small></div>
-            <div><span>Today’s capacity</span><strong>{data.dailyCapacity.contactsUsed}/{data.dailyCapacity.contactLimit}</strong><small>{data.dailyCapacity.reviewsUsed}/{data.dailyCapacity.reviewLimit} human reviews used</small></div>
+            <div><span>Day-zero capacity</span><strong>{data.dailyCapacity.contactsUsed}/{data.dailyCapacity.contactLimit}</strong><small>{data.dailyCapacity.reviewsUsed}/{data.dailyCapacity.reviewLimit} simulated human reviews used</small></div>
           </section>
           <section className="frontier-section" id="frontier">
             <div className="section-heading command-section-heading"><div><p className="eyebrow">Recovery / burden trade-off</p><h2>Recovery Frontier</h2></div><div className="evidence-stamp"><span /> Paired synthetic</div></div>
@@ -166,10 +172,15 @@ export function RecoveryCommandCenter() {
               {([['actNow', 'Act now', data.queues.actNow.length], ['protected', 'Wait / protected', data.queues.protected.length], ['deferred', 'Deferred', data.queues.deferred.length]] as const).map(([value, label, count]) => <button key={value} type="button" role="tab" aria-selected={queue === value} onClick={() => { setQueue(value); setSelectedCaseId(null); }}>{label}<span>{count}</span></button>)}
             </div>
             <div className="queue-list">{queueItems.length ? queueItems.map((item) => <QueueRow key={item.id} item={item} active={item.id === selectedCase?.id} onSelect={() => setSelectedCaseId(item.id)} />) : <div className="queue-empty">No cases in this queue at the selected capacity.</div>}</div>
+            <div className="journey-next"><div><span>Next · operational proof</span><strong>Take one messy customer reply from interpretation to a bounded Razorpay handoff.</strong></div><Link href="/collection">Open Decision Replay →</Link></div>
           </section>
           <section className="evidence-section" id="evidence">
-            <div><p className="eyebrow">Evidence boundary</p><h2>What this screen proves</h2></div>
+            <div><p className="eyebrow">Evidence Lab · definitions and limits</p><h2>What this screen proves</h2><p className="section-note">Four evidence classes remain separate from input through headline metric.</p></div>
             <div className="evidence-grid"><div><span className="evidence-dot evidence-dot--synthetic" /><strong>Synthetic receivables</strong><p>Controlled invoice values, aging, histories, and capacity constraints.</p></div><div><span className="evidence-dot evidence-dot--measured" /><strong>Measured decisions</strong><p>Proposals, policy outcomes, queue allocation, and deterministic hashes.</p></div><div><span className="evidence-dot evidence-dot--assumed" /><strong>Simulated outcomes</strong><p>Customer response and payment behavior under disclosed scenario assumptions.</p></div><div><span className="evidence-dot evidence-dot--test" /><strong>Razorpay not invoked here</strong><p>Test Mode collection remains a separate integration proof.</p></div></div>
+            <div className="evidence-details">
+              <details open><summary>Metric definitions</summary><dl><div><dt>Simulated recovery</dt><dd>Starting outstanding minus ending outstanding in the deterministic scenario.</dd></div><div><dt>Paired difference</dt><dd>Recoup recovery minus native-reminder recovery on the same synthetic portfolio and outcome bank.</dd></div><div><dt>Contacts / reviews</dt><dd>Executed customer contacts and human-review actions; protected waits consume neither.</dd></div><div><dt>Recovery rate</dt><dd>Simulated recovered paise divided by starting synthetic outstanding paise.</dd></div></dl></details>
+              <details open><summary>Limitations</summary><ul><li>No real merchant receivables or Live Mode money appear here.</li><li>Scenario probabilities are disclosed assumptions, not calibrated customer probabilities.</li><li>Three development seeds show sensitivity, not statistical significance or causal uplift.</li><li>No model or Razorpay API is invoked to generate this screen.</li></ul></details>
+            </div>
             <details className="hash-disclosure"><summary>Reproducibility hashes</summary><code>Decision cache · {data.evidence.decisionCacheHash}</code><code>Outcome bank · {data.evidence.outcomeBankHash}</code></details>
           </section>
         </>}

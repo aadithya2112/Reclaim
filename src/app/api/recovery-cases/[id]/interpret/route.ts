@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { aiDecisionRuns, customerMessages, operationalAuditEvents, policyEvaluations, promises, recoveryCases, recoveryProposals } from "@/db/schema";
-import { cachedDemoProposal } from "@/lib/cached-commitment";
+import { cachedDemoProposal, CACHED_COMMITMENT_VERSION } from "@/lib/cached-commitment";
 import { BUSINESS_TIMEZONE, COMMITMENT_PROMPT_VERSION, COMMITMENT_SCHEMA_VERSION, detectPromptInjection, stableHash, validateCommitmentProposal, type CommitmentContext } from "@/lib/commitment-interpreter";
 import { evidenceLabels, auditValues } from "@/lib/operational-recovery";
 import { interpretWithOpenRouter, OPENROUTER_MODEL, OPENROUTER_PROVIDER_POLICY_VERSION, OpenRouterError } from "@/lib/openrouter";
@@ -45,7 +45,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       await tx.select({ id: recoveryCases.id }).from(recoveryCases).where(eq(recoveryCases.id, id)).limit(1).for("update");
       await tx.update(recoveryCases).set({ approvedProposalId: null, updatedAt: new Date() }).where(eq(recoveryCases.id, id));
       await tx.update(promises).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(promises.recoveryCaseId, id));
-      await tx.insert(aiDecisionRuns).values({ id: runId, recoveryCaseId: id, customerMessageId: messageId, status: "MANUAL_REVIEW", canonicalInputHash: inputHash, promptVersion: COMMITMENT_PROMPT_VERSION, schemaVersion: COMMITMENT_SCHEMA_VERSION, providerPolicyVersion: OPENROUTER_PROVIDER_POLICY_VERSION, modelId: OPENROUTER_MODEL, failureCode: "PROMPT_INJECTION_DETECTED", failureDetail: "Untrusted message matched an injection pattern; no provider call was made." });
+      await tx.insert(aiDecisionRuns).values({ id: runId, recoveryCaseId: id, customerMessageId: messageId, status: "MANUAL_REVIEW", canonicalInputHash: inputHash, promptVersion: COMMITMENT_PROMPT_VERSION, schemaVersion: COMMITMENT_SCHEMA_VERSION, providerPolicyVersion: OPENROUTER_PROVIDER_POLICY_VERSION, modelId: OPENROUTER_MODEL, privacyMode: "NO_PROVIDER_CALL", failureCode: "PROMPT_INJECTION_DETECTED", failureDetail: "Untrusted message matched an injection pattern; no provider call was made." });
       await tx.insert(operationalAuditEvents).values(auditValues(id, "SYSTEM", "MODEL_RUN_FAILED_CLOSED", "Prompt injection defense routed the message to manual review without executing model instructions.", evidenceLabels.policy, { runId, inputHash, reason: "PROMPT_INJECTION_DETECTED" }));
     });
     return Response.json({ status: "MANUAL_REVIEW", failureCode: "PROMPT_INJECTION_DETECTED", runId }, { status: 422 });
@@ -54,6 +54,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   const runId = crypto.randomUUID();
   let rawOutput: unknown;
   let provider: string | null = null;
+  let privacyMode: "ZDR" | "DATA_COLLECTION_DENY" | null = null;
   let latencyMs = 0;
   try {
     if (input.data.mode === "CACHED_REPLAY") {
@@ -63,6 +64,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       const result = await interpretWithOpenRouter(context);
       rawOutput = result.output;
       provider = result.provider;
+      privacyMode = result.privacyMode;
       latencyMs = result.latencyMs;
     }
     const validated = validateCommitmentProposal(rawOutput, context);
@@ -75,14 +77,14 @@ export async function POST(request: Request, { params }: RouteContext) {
       await tx.select({ id: recoveryCases.id }).from(recoveryCases).where(eq(recoveryCases.id, id)).limit(1).for("update");
       const [latest] = await tx.select({ revision: recoveryProposals.revision }).from(recoveryProposals).where(eq(recoveryProposals.recoveryCaseId, id)).orderBy(desc(recoveryProposals.revision)).limit(1);
       const revision = (latest?.revision ?? 0) + 1;
-      await tx.insert(aiDecisionRuns).values({ id: runId, recoveryCaseId: id, customerMessageId: messageId, status: input.data.mode === "LIVE" ? "LIVE_SUCCESS" : "CACHED_REPLAY", canonicalInputHash: inputHash, promptVersion: COMMITMENT_PROMPT_VERSION, schemaVersion: COMMITMENT_SCHEMA_VERSION, providerPolicyVersion: OPENROUTER_PROVIDER_POLICY_VERSION, modelId: OPENROUTER_MODEL, providerName: provider, outputHash: stableHash(proposal), validatedOutput: proposal, latencyMs });
-      await tx.insert(recoveryProposals).values({ id: proposalId, recoveryCaseId: id, customerMessageId: messageId, decisionRunId: runId, revision, source: input.data.mode === "LIVE" ? "MODEL" : "CACHED_MODEL", proposalHash: stableHash(proposal), proposal, createdBy: input.data.mode === "LIVE" ? OPENROUTER_MODEL : "frozen-demo-cache" });
+      await tx.insert(aiDecisionRuns).values({ id: runId, recoveryCaseId: id, customerMessageId: messageId, status: input.data.mode === "LIVE" ? "LIVE_SUCCESS" : "CACHED_REPLAY", canonicalInputHash: inputHash, promptVersion: COMMITMENT_PROMPT_VERSION, schemaVersion: COMMITMENT_SCHEMA_VERSION, providerPolicyVersion: OPENROUTER_PROVIDER_POLICY_VERSION, modelId: OPENROUTER_MODEL, providerName: provider, privacyMode: input.data.mode === "LIVE" ? privacyMode : "NO_PROVIDER_CALL", outputHash: stableHash(proposal), validatedOutput: proposal, latencyMs });
+      await tx.insert(recoveryProposals).values({ id: proposalId, recoveryCaseId: id, customerMessageId: messageId, decisionRunId: runId, revision, source: input.data.mode === "LIVE" ? "MODEL" : "CACHED_MODEL", proposalHash: stableHash(proposal), proposal, createdBy: input.data.mode === "LIVE" ? OPENROUTER_MODEL : CACHED_COMMITMENT_VERSION });
       await tx.update(recoveryCases).set({ approvedProposalId: null, updatedAt: new Date() }).where(eq(recoveryCases.id, id));
       await tx.update(promises).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(promises.recoveryCaseId, id));
       await tx.insert(policyEvaluations).values({ id: policyId, recoveryCaseId: id, proposalId, policyVersion: OPERATIONAL_POLICY_VERSION, outcome: policy.outcome, reasons: policy.reasons });
       if (proposal.promise_amount_mode !== "NONE" && proposal.promised_date) await tx.insert(promises).values({ id: crypto.randomUUID(), recoveryCaseId: id, proposalId, amountMode: proposal.promise_amount_mode, promisedDate: proposal.promised_date, amountPaise: proposal.explicit_promised_amount_paise, status: "PENDING_VERIFICATION" });
       await tx.insert(operationalAuditEvents).values([
-        auditValues(id, input.data.mode === "LIVE" ? "AI" : "CACHE", "PROPOSAL_CREATED", input.data.mode === "LIVE" ? "Live structured model output validated and frozen." : "Frozen structured output replayed; no live model call was made.", input.data.mode === "LIVE" ? evidenceLabels.model : evidenceLabels.cached, { runId, proposalId, revision, inputHash, outputHash: stableHash(proposal), model: OPENROUTER_MODEL }),
+        auditValues(id, input.data.mode === "LIVE" ? "AI" : "CACHE", "PROPOSAL_CREATED", input.data.mode === "LIVE" ? "Live structured model output validated and frozen." : "Frozen structured output replayed; no live model call was made.", input.data.mode === "LIVE" ? evidenceLabels.model : evidenceLabels.cached, { runId, proposalId, revision, inputHash, outputHash: stableHash(proposal), model: OPENROUTER_MODEL, privacyMode: input.data.mode === "LIVE" ? privacyMode : "NO_PROVIDER_CALL" }),
         auditValues(id, "POLICY", "POLICY_EVALUATED", `Policy outcome: ${policy.outcome}.`, evidenceLabels.policy, { proposalId, policyId, policyVersion: OPERATIONAL_POLICY_VERSION, reasons: policy.reasons }),
       ]);
     });
@@ -93,7 +95,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       await tx.select({ id: recoveryCases.id }).from(recoveryCases).where(eq(recoveryCases.id, id)).limit(1).for("update");
       await tx.update(recoveryCases).set({ approvedProposalId: null, updatedAt: new Date() }).where(eq(recoveryCases.id, id));
       await tx.update(promises).set({ status: "CANCELLED", updatedAt: new Date() }).where(eq(promises.recoveryCaseId, id));
-      await tx.insert(aiDecisionRuns).values({ id: runId, recoveryCaseId: id, customerMessageId: messageId, status: "MANUAL_REVIEW", canonicalInputHash: inputHash, promptVersion: COMMITMENT_PROMPT_VERSION, schemaVersion: COMMITMENT_SCHEMA_VERSION, providerPolicyVersion: OPENROUTER_PROVIDER_POLICY_VERSION, modelId: OPENROUTER_MODEL, providerName: provider, failureCode: failure.code, failureDetail: failure.message, latencyMs });
+      await tx.insert(aiDecisionRuns).values({ id: runId, recoveryCaseId: id, customerMessageId: messageId, status: "MANUAL_REVIEW", canonicalInputHash: inputHash, promptVersion: COMMITMENT_PROMPT_VERSION, schemaVersion: COMMITMENT_SCHEMA_VERSION, providerPolicyVersion: OPENROUTER_PROVIDER_POLICY_VERSION, modelId: OPENROUTER_MODEL, providerName: provider, privacyMode: input.data.mode === "CACHED_REPLAY" ? "NO_PROVIDER_CALL" : privacyMode, failureCode: failure.code, failureDetail: failure.message, latencyMs });
       await tx.insert(operationalAuditEvents).values(auditValues(id, "SYSTEM", "MODEL_RUN_FAILED_CLOSED", "Interpreter failure routed the case to manual review; no action was authorized.", evidenceLabels.policy, { runId, inputHash, failureCode: failure.code }));
     });
     return Response.json({ status: "MANUAL_REVIEW", failureCode: failure.code, runId }, { status: 422 });
