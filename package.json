@@ -18,7 +18,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "bun run src/db/seed.ts",
-    "demo:reset": "bun run src/db/demo-reset-cli.ts"
+    "demo:reset": "bun run src/db/demo-reset-cli.ts",
+    "infra:synth": "cdk synth --strict",
+    "infra:diff": "cdk diff --strict"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -36,10 +38,15 @@
     "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
+    "aws-cdk": "^2.1139.0",
+    "aws-cdk-lib": "^2.268.0",
+    "cdk-nag": "2.38.2",
+    "constructs": "^10.8.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.3.3",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.0"
   }
 }
