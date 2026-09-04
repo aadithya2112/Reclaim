@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recoup — UI direction</title>
+  <style>
+    :root {
+      --canvas: #f5f5f2;
+      --surface: #ffffff;
+      --ink: #17191c;
+      --muted: #72777f;
+      --line: #e2e3df;
+      --accent: #3157e2;
+      --accent-soft: #edf1ff;
+      --success: #14865c;
+      --warning: #a76813;
+      --sidebar: #17191c;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--canvas); }
+    body { color: var(--ink); font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    button { font: inherit; }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: 224px minmax(0, 1fr); }
+    .sidebar { position: relative; min-height: 100vh; padding: 28px 20px; color: #f8f8f5; background: var(--sidebar); }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 8px; font-size: 18px; font-weight: 720; letter-spacing: -.04em; }
+    .brand-mark { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: #fff; background: var(--accent); font-size: 13px; font-weight: 800; }
+    .nav-label { margin: 48px 10px 12px; color: #797e86; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .nav { display: grid; gap: 4px; }
+    .nav a { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 8px; color: #aeb2b8; text-decoration: none; font-size: 13px; }
+    .nav a::before { content: ""; width: 7px; height: 7px; border: 1.5px solid currentColor; border-radius: 2px; }
+    .nav a.active { color: #fff; background: #272a2f; }
+    .nav a.active::before { border-color: var(--accent); background: var(--accent); }
+    .sidebar-foot { position: absolute; right: 20px; bottom: 24px; left: 20px; padding: 16px 12px 0; border-top: 1px solid #303238; color: #8f949b; font-size: 11px; line-height: 1.5; }
+    .sidebar-foot strong { display: block; margin-bottom: 3px; color: #d8dade; font-size: 12px; }
+
+    .main { min-width: 0; }
+    .topbar { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 36px; border-bottom: 1px solid var(--line); background: rgba(245,245,242,.92); backdrop-filter: blur(14px); }
+    .crumbs { color: var(--muted); font-size: 12px; }
+    .crumbs strong { color: var(--ink); font-weight: 650; }
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .mode { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+    .mode i { width: 7px; height: 7px; border-radius: 50%; background: #d69a2d; }
+    .primary { min-height: 36px; padding: 0 14px; border: 0; border-radius: 8px; color: #fff; background: var(--accent); font-size: 12px; font-weight: 650; }
+
+    .content { max-width: 1440px; padding: 38px 40px 64px; }
+    .heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; }
+    .heading h1 { margin: 0; font-size: 30px; font-weight: 660; letter-spacing: -.045em; }
+    .heading p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    .period { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+    .period button { padding: 6px 11px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 11px; }
+    .period button.active { color: var(--ink); background: #f0f0ed; font-weight: 650; }
+
+    .summary { display: grid; grid-template-columns: 1.45fr repeat(3, 1fr); margin-top: 34px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line); }
+    .summary > div { min-width: 0; padding: 22px 22px 23px 0; }
+    .summary > div + div { padding-left: 22px; border-left: 1px solid var(--line); }
+    .label { display: block; color: var(--muted); font-size: 10px; font-weight: 650; letter-spacing: .02em; }
+    .summary strong { display: block; margin: 9px 0 6px; font-size: 25px; font-weight: 610; letter-spacing: -.04em; }
+    .summary .hero-number { color: var(--success); font-size: 33px; }
+    .summary small { display: block; color: var(--muted); font-size: 10px; line-height: 1.45; }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .72fr); gap: 28px; margin-top: 42px; }
+    .section-head { min-height: 40px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .section-head h2 { margin: 0; font-size: 16px; font-weight: 670; letter-spacing: -.025em; }
+    .section-head p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .text-button { border: 0; color: var(--accent); background: transparent; font-size: 11px; font-weight: 650; }
+
+    .chart { height: 244px; margin-top: 16px; padding: 22px 18px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .chart-key { display: flex; align-items: center; justify-content: space-between; }
+    .chart-key strong { font-size: 12px; font-weight: 650; }
+    .legend { display: flex; gap: 16px; color: var(--muted); font-size: 9px; }
+    .legend span::before { content: ""; display: inline-block; width: 14px; height: 2px; margin: 0 6px 3px 0; background: var(--accent); }
+    .legend span:last-child::before { background: #b8bcc3; }
+    .plot { position: relative; height: 174px; margin: 14px 0 0 38px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0, transparent 42px, #ecece9 43px); }
+    .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .axis { position: absolute; color: #9a9ea5; font-size: 8px; }
+    .axis.y1 { left: -37px; top: -3px; } .axis.y2 { left: -37px; top: 80px; } .axis.y3 { left: -25px; bottom: -3px; }
+    .axis.x1 { left: -2px; bottom: -17px; } .axis.x2 { left: 48%; bottom: -17px; } .axis.x3 { right: -2px; bottom: -17px; }
+
+    .queue { margin-top: 38px; }
+    .tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); }
+    .tabs button { position: relative; padding: 10px 0 12px; border: 0; color: var(--muted); background: transparent; font-size: 11px; }
+    .tabs button.active { color: var(--ink); font-weight: 650; }
+    .tabs button.active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--accent); }
+    .tabs span { margin-left: 6px; color: #9a9ea5; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th { padding: 14px 8px 9px; color: #9a9ea5; font-size: 9px; font-weight: 650; text-align: left; text-transform: uppercase; letter-spacing: .06em; }
+    .table td { padding: 14px 8px; border-top: 1px solid var(--line); font-size: 11px; }
+    .table tbody tr { transition: background .16s ease; }
+    .table tbody tr:hover, .table tbody tr.selected { background: #efefec; }
+    .table strong { display: block; font-size: 12px; font-weight: 650; }
+    .table small { color: var(--muted); font-size: 9px; }
+    .badge { display: inline-flex; padding: 5px 7px; border-radius: 999px; color: var(--success); background: #e8f4ef; font-size: 9px; font-weight: 700; }
+    .badge.review { color: var(--warning); background: #faf1e2; }
+
+    .inspector { min-height: 592px; padding-left: 28px; border-left: 1px solid var(--line); }
+    .inspector-kicker { color: var(--accent); font-size: 10px; font-weight: 700; }
+    .inspector h2 { margin: 9px 0 4px; font-size: 25px; font-weight: 640; letter-spacing: -.04em; }
+    .inspector > p { margin: 0; color: var(--muted); font-size: 11px; }
+    .amount { margin: 32px 0 28px; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
+    .amount span { display: block; color: var(--muted); font-size: 10px; }
+    .amount strong { display: block; margin-top: 8px; font-size: 31px; font-weight: 610; letter-spacing: -.045em; }
+    .decision { padding: 18px; border-radius: 12px; background: var(--accent-soft); }
+    .decision span { color: #6374b7; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .decision strong { display: block; margin: 8px 0 7px; font-size: 14px; }
+    .decision p { margin: 0; color: #566074; font-size: 10px; line-height: 1.55; }
+    .facts { display: grid; grid-template-columns: 1fr 1fr; margin: 24px 0; }
+    .facts div { padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .facts span { display: block; color: var(--muted); font-size: 9px; }
+    .facts strong { display: block; margin-top: 4px; font-size: 11px; }
+    .policy { display: flex; gap: 10px; padding-top: 4px; }
+    .policy i { flex: 0 0 auto; width: 7px; height: 7px; margin-top: 3px; border-radius: 50%; background: var(--success); }
+    .policy strong { display: block; font-size: 11px; }
+    .policy p { margin: 4px 0 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+    .inspector-action { width: 100%; min-height: 40px; margin-top: 28px; border: 0; border-radius: 8px; color: #fff; background: var(--accent); font-size: 11px; font-weight: 650; }
+    .provenance { margin-top: 14px; color: #969aa1; font-size: 9px; line-height: 1.5; }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 72px minmax(0, 1fr); }
+      .sidebar { padding-inline: 14px; } .brand span:last-child, .nav-label, .nav a span, .sidebar-foot { display: none; }
+      .brand { padding: 0; justify-content: center; } .nav { margin-top: 48px; } .nav a { justify-content: center; }
+      .summary { grid-template-columns: repeat(2, 1fr); } .workspace { grid-template-columns: 1fr; } .inspector { min-height: 0; padding: 28px 0 0; border-top: 1px solid var(--line); border-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">R</span><span>recoup</span></div>
+      <div class="nav-label">Workspace</div>
+      <nav class="nav">
+        <a class="active" href="#"><span>Overview</span></a>
+        <a href="#"><span>Recovery cases</span></a>
+        <a href="#"><span>Decision log</span></a>
+        <a href="#"><span>Evidence</span></a>
+      </nav>
+      <div class="sidebar-foot"><strong>Synthetic benchmark</strong>Scenario data only. Razorpay Test Mode is labelled separately.</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumbs">Portfolio / <strong>September recovery</strong></div>
+        <div class="top-actions"><span class="mode"><i></i> Demo environment</span><button class="primary">Run portfolio</button></div>
+      </header>
+
+      <div class="content">
+        <section class="heading">
+          <div><h1>Recovery overview</h1><p>Prioritise today’s cases and inspect why each action was chosen.</p></div>
+          <div class="period"><button>7 days</button><button class="active">30 days</button><button>90 days</button></div>
+        </section>
+
+        <section class="summary">
+          <div><span class="label">Recovered above baseline</span><strong class="hero-number">+₹2.4L</strong><small>Paired simulated difference, not causal uplift</small></div>
+          <div><span class="label">Simulated recovery</span><strong>₹8.0L</strong><small>61% of starting outstanding</small></div>
+          <div><span class="label">Starting outstanding</span><strong>₹13.1L</strong><small>96 synthetic receivables</small></div>
+          <div><span class="label">Capacity used today</span><strong>20 / 20</strong><small>4 human reviews</small></div>
+        </section>
+
+        <div class="workspace">
+          <div>
+            <section>
+              <div class="section-head"><div><h2>Recovery vs customer contact</h2><p>More recovery is better; fewer contacts are better.</p></div><button class="text-button">Compare strategies</button></div>
+              <div class="chart">
+                <div class="chart-key"><strong>30-day simulated outcome</strong><div class="legend"><span>Recoup</span><span>Fixed reminders</span></div></div>
+                <div class="plot">
+                  <span class="axis y1">₹8L</span><span class="axis y2">₹4L</span><span class="axis y3">₹0</span>
+                  <span class="axis x1">0</span><span class="axis x2">240 contacts</span><span class="axis x3">480</span>
+                  <svg viewBox="0 0 620 174" preserveAspectRatio="none" aria-label="Recovery comparison chart">
+                    <path d="M0 158 C80 148 104 118 168 109 S270 73 334 59 S455 30 620 18" fill="none" stroke="#3157e2" stroke-width="3" vector-effect="non-scaling-stroke" />
+                    <path d="M0 158 C90 153 120 139 190 129 S330 102 410 93 S520 79 620 72" fill="none" stroke="#b8bcc3" stroke-width="2" vector-effect="non-scaling-stroke" />
+                    <circle cx="334" cy="59" r="5" fill="#fff" stroke="#3157e2" stroke-width="3" vector-effect="non-scaling-stroke" />
+                  </svg>
+                </div>
+              </div>
+            </section>
+
+            <section class="queue">
+              <div class="section-head"><div><h2>Today’s recovery queue</h2><p>20 actions selected from 96 open cases.</p></div><button class="text-button">View all cases</button></div>
+              <div class="tabs"><button class="active">Act now <span>20</span></button><button>Needs review <span>4</span></button><button>Protected <span>11</span></button></div>
+              <table class="table">
+                <thead><tr><th>Invoice</th><th>Customer</th><th>Overdue</th><th>Recommended action</th><th>Outstanding</th></tr></thead>
+                <tbody>
+                  <tr class="selected"><td><strong>INV-048</strong><small>High priority</small></td><td>Northstar Labs</td><td>18 days</td><td><span class="badge">Send payment link</span></td><td><strong>₹86,400</strong></td></tr>
+                  <tr><td><strong>INV-031</strong><small>Medium priority</small></td><td>Aster Retail</td><td>13 days</td><td><span class="badge">Gentle reminder</span></td><td><strong>₹62,000</strong></td></tr>
+                  <tr><td><strong>INV-022</strong><small>High priority</small></td><td>Juniper Works</td><td>29 days</td><td><span class="badge review">Human review</span></td><td><strong>₹1,14,500</strong></td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+
+          <aside class="inspector">
+            <span class="inspector-kicker">Selected case</span>
+            <h2>INV-048</h2>
+            <p>Northstar Labs · 18 days overdue</p>
+            <div class="amount"><span>Outstanding</span><strong>₹86,400</strong></div>
+            <div class="decision"><span>Recommended action</span><strong>Send a verified payment link</strong><p>Recent reply shows willingness to pay. No active promise or contact-limit block was found.</p></div>
+            <div class="facts"><div><span>Risk</span><strong>Medium</strong></div><div><span>Confidence</span><strong>91%</strong></div><div><span>Last contact</span><strong>4 days ago</strong></div><div><span>Contact count</span><strong>2 of 4</strong></div></div>
+            <div class="policy"><i></i><div><strong>Policy checks passed</strong><p>Within contact limits. No protected commitment. Action is auditable.</p></div></div>
+            <button class="inspector-action">Open decision replay</button>
+            <div class="provenance">Measured decision on synthetic receivables. Payment collection is only verified after a signed Razorpay Test Mode webhook.</div>
+          </aside>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -4,7 +4,7 @@ test("cached replay → approval → Razorpay handoff → verified promise and q
   const resetResponse = await page.request.post("/api/demo/reset");
   expect(resetResponse.ok()).toBe(true);
   await page.goto("/collection");
-  await expect(page.getByRole("heading", { name: /Interpret\. Approve\./ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Interpret, approve, verify." })).toBeVisible();
   await page.getByRole("button", { name: "Use cached replay" }).click();
   await expect(page.getByText("CACHED MODEL REPLAY", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("₹40,000", { exact: true })).toBeVisible();
@@ -39,8 +39,27 @@ test("cached replay → approval → Razorpay handoff → verified promise and q
   });
   await page.getByRole("button", { name: "Create approved Payment Link" }).click();
   await expect(page.getByRole("link", { name: /Open Razorpay Checkout/ })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "₹35,000 protected" })).toBeVisible();
-  await expect(page.locator(".after-grid").getByText("WAIT PROTECTED", { exact: true }).first()).toBeVisible();
-  await expect(page.locator(".after-grid").getByText("ACT NOW", { exact: true }).first()).toBeVisible();
+  const impact = page.getByTestId("promise-queue-impact");
+  await expect(impact.getByText("₹35,000 protected", { exact: true })).toBeVisible();
+  await expect(impact.getByText("WAIT PROTECTED", { exact: true }).first()).toBeVisible();
+  await expect(impact.getByText("ACT NOW", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/separate from the synthetic Recovery Frontier/)).toBeVisible();
+});
+
+test("command center controls, queues, case inspection, and evidence labels", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Recovery overview" })).toBeVisible();
+  await expect(page.getByText("Paired simulated difference, not causal uplift", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: /Simulated recovery plotted/ })).toBeVisible();
+
+  await page.getByRole("combobox", { name: "Scenario" }).click();
+  await page.getByRole("option", { name: "Conservative" }).click();
+  await expect(page.getByText("Paired synthetic", { exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: /Wait \/ protected/ }).click();
+  const inspectButton = page.getByRole("button", { name: /^Inspect SYN-INV-/ }).first();
+  await inspectButton.click();
+  await expect(page.getByText("Selected decision", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Synthetic receivables", { exact: true })).toBeVisible();
+  await expect(page.getByText("Razorpay not invoked", { exact: true })).toBeVisible();
 });
