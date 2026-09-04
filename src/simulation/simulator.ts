@@ -254,7 +254,7 @@ function transition(c: SimulationCase, next: RecoveryState): boolean {
   return true;
 }
 
-export function runSimulation(input: SimulationConfigInput = {}, suppliedStrategy?: RecoveryStrategy, suppliedBank?: PotentialOutcomeBank): SimulationResult {
+function executeSimulation(input: SimulationConfigInput = {}, suppliedStrategy?: RecoveryStrategy, suppliedBank?: PotentialOutcomeBank, validateSuppliedBank = true): SimulationResult {
   const selectedName = suppliedStrategy?.name ?? input.strategy ?? DEFAULT_CONFIG.strategy;
   const config: SimulationConfig = {
     ...DEFAULT_CONFIG,
@@ -269,7 +269,7 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   const generated = generatePortfolio(config);
   const initialPortfolio = clone(generated.cases).sort(byCaseId);
   const bank = suppliedBank ?? createPotentialOutcomeBank(config, initialPortfolio);
-  validatePotentialOutcomeBank(bank, config, initialPortfolio);
+  if (suppliedBank && validateSuppliedBank) validatePotentialOutcomeBank(bank, config, initialPortfolio);
   const cases = clone(generated.cases).sort(byCaseId);
   const caseMap = new Map(cases.map((item) => [item.id, item]));
   const events: AuditEvent[] = [];
@@ -448,13 +448,20 @@ export function runSimulation(input: SimulationConfigInput = {}, suppliedStrateg
   return { runId, config, initialPortfolio, hiddenState: generated.hidden, potentialOutcomeBankHash: bank.sha256, decisionCache, finalCases: cases, auditEvents: events, payments, dailyCapacity, metrics: calculateMetrics(initialPortfolio, cases, events, dailyCapacity) };
 }
 
+export function runSimulation(input: SimulationConfigInput = {}, suppliedStrategy?: RecoveryStrategy, suppliedBank?: PotentialOutcomeBank): SimulationResult {
+  return executeSimulation(input, suppliedStrategy, suppliedBank, true);
+}
+
 export function compareStrategies(input: SimulationConfigInput = {}, names: StrategyName[] = STRATEGY_NAMES, recoupManifest?: DecisionManifest): StrategyComparison {
   const uniqueNames = [...new Set(names)];
   if (!uniqueNames.length) throw new Error("At least one strategy is required for comparison");
   const firstConfig: SimulationConfig = { ...DEFAULT_CONFIG, ...input, strategy: uniqueNames[0], policy: { ...DEFAULT_POLICY, ...input.policy }, capacity: { ...DEFAULT_CONFIG.capacity, ...input.capacity } };
   validateConfig(firstConfig);
   const generated = generatePortfolio(firstConfig); const bank = createPotentialOutcomeBank(firstConfig, generated.cases);
-  const results = uniqueNames.map((strategy) => runSimulation({ ...input, strategy }, strategy === "recoup-agent" ? new RecoupAgentStrategy(new FrozenRecoupDecisions(recoupManifest ?? (() => { throw new Error("recoup-agent comparison requires a frozen decision manifest"); })())) : undefined, bank));
+  // The bank was created immediately above from the same validated configuration and
+  // portfolio. Re-validating that large deterministic structure once per strategy is
+  // redundant and can monopolize the web server's event loop under cold-cache traffic.
+  const results = uniqueNames.map((strategy) => executeSimulation({ ...input, strategy }, strategy === "recoup-agent" ? new RecoupAgentStrategy(new FrozenRecoupDecisions(recoupManifest ?? (() => { throw new Error("recoup-agent comparison requires a frozen decision manifest"); })())) : undefined, bank, false));
   const first = results[0].config;
   const commonConfig = normalizeEnvironmentConfig(first);
   const comparisonId = createHash("sha256").update(`${SIMULATOR_VERSION}|comparison|${stableJson(commonConfig)}|${bank.sha256}|${[...uniqueNames].sort().join("|")}`).digest("hex").slice(0, 16);

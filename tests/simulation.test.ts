@@ -232,6 +232,7 @@ describe("deterministic recovery simulation", () => {
     const tampered = structuredClone(bank);
     tampered.outcomes[cases[0].id].spontaneousByDay["0"] = .999;
     expect(() => validatePotentialOutcomeBank(tampered, config, cases)).toThrow("hash");
+    expect(() => runSimulation(config, undefined, tampered)).toThrow("hash");
     const incomplete = structuredClone(bank);
     delete incomplete.outcomes[cases[0].id];
     expect(() => validatePotentialOutcomeBank(incomplete, config, cases)).toThrow();
