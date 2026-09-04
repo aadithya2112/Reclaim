@@ -1,6 +1,6 @@
 # AWS + Neon Deployment Architecture
 
-Status: Public AWS/Cloudflare deployment and persistence verified; Full (strict) origin validation and hosted acceptance pending
+Status: Public AWS/Cloudflare deployment, persistence, judge journey, and hosted Test Mode payment acceptance verified; Full (strict) origin validation remains optional hardening
 
 This is a two-week, cost-conscious environment for synthetic receivables and Razorpay Test Mode evidence. It is not approved for real customer or Live Mode payment data.
 
@@ -15,7 +15,7 @@ Judge / Razorpay Test Mode
             v
 Cloudflare DNS and proxy (`recoup.aadithya.dev`)
             |
-            | Full (strict) TLS
+            | Full TLS currently; Full (strict) target
             v
 AWS Application Load Balancer + ACM certificate
             |

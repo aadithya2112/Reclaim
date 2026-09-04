@@ -2,12 +2,12 @@
 
 Completed work is recorded in `README.md` and `docs/plans/ai-revenue-recovery-revised-plan.md`. This file contains pending work only.
 
-## AWS deployment and scalability proof
+## Completed hosted deployment proof
 
-- [ ] Deploy the complete current application to a cost-conscious AWS compute environment using infrastructure as code, with managed PostgreSQL on Neon.
+- [x] Deploy the complete current application to a cost-conscious AWS compute environment using infrastructure as code, with managed PostgreSQL on Neon.
   - [x] Complete local deployment readiness: production image, standalone output, health endpoint, graceful shutdown, migration/runtime URL separation, one-off migration bundle, strict CDK synth, cdk-nag review, bootstrap, rollback/runbook, and local container smoke.
   - [x] Validate the requested ACM certificate, deploy the foundation stack, and publish an immutable ECR image.
-  - [ ] Run hosted acceptance. Managed configuration, platform deployment, migration/seed, public Cloudflare routing, origin health, alarm checks, and Neon persistence across ECS replacement are complete. Cloudflare origin encryption should still be tightened from `Full` to `Full (strict)`.
+  - [x] Run hosted acceptance. Managed configuration, platform deployment, migration/seed, public Cloudflare routing, origin health, alarm checks, Neon persistence across ECS replacement, the public judge journey, and the signed Test Mode payment transition are complete.
   - Containerize the Next.js/Bun application and publish immutable images to Amazon ECR.
   - Run the web service on Amazon ECS with AWS Fargate behind an Application Load Balancer with HTTPS. Assign public IPv4 addresses to tasks so they can reach Neon, Razorpay, OpenRouter, ECR, and AWS control-plane endpoints without a NAT Gateway; allow inbound application traffic only from the load balancer security group. Configure health checks and bounded horizontal scaling without changing recovery behavior.
   - Use a dedicated Neon Free-plan PostgreSQL project in the Singapore AWS region, the closest currently available Neon region to the Mumbai application. Use a pooled TLS connection for the web service and a direct TLS connection for a controlled one-off Drizzle migration task. Prove state survives application replacement.
@@ -23,8 +23,13 @@ Completed work is recorded in `README.md` and `docs/plans/ai-revenue-recovery-re
 
 ## Razorpay hosted Test Mode proof
 
-- [ ] Run the complete hosted Razorpay Test Mode flow against the deployed public HTTPS webhook endpoint in a later user-assisted session.
-  - Still not verified: creating or reusing the real partial-enabled Payment Link, completing an exact ₹40,000 hosted checkout, and receiving Razorpay's signed webhook over the public internet.
-  - What is verified: authenticated read-only Razorpay Test Mode API access; local database integration using representative signed `payment_link.partially_paid` and `payment_link.paid` payloads; duplicate and out-of-order protection.
+- [x] Run the complete hosted Razorpay Test Mode flow against the deployed public HTTPS webhook endpoint.
+  - Verified: partial-enabled Payment Link `plink_TXyy18NdibJ9R0`, exact ₹40,000 Test Mode payment `pay_TXyzlMlkJWaTKP`, and signed public `payment_link.partially_paid` webhook event `TXyzr0LJKPjwQ3`.
+  - Also verified: authenticated read-only Razorpay Test Mode API access; local database integration using representative signed `payment_link.partially_paid` and `payment_link.paid` payloads; duplicate and out-of-order protection.
   - Done when: `INV-003` moves from ₹75,000 to ₹35,000 exactly once, the authoritative ₹35,000 remainder promise becomes active, `INV-003` becomes `WAIT_PROTECTED`, and `INV-001` is promoted to `ACT_NOW`. Retain the Payment Link, payment, event, case, deployment, and CloudWatch correlation identifiers as Test Mode evidence.
   - Do not substitute the recorded fallback for this acceptance proof. The fallback is explicitly simulated and writes no ledger state.
+
+## Optional operational hardening
+
+- [ ] Change Cloudflare origin encryption from `Full` to `Full (strict)` so Cloudflare validates the issued ACM certificate. Plain `Full` is currently functional and does not block the demo.
+- [ ] Recreate and reconfirm the optional SNS email subscription; AWS currently reports the previous subscription as `Deleted`. CloudWatch alarms remain configured.

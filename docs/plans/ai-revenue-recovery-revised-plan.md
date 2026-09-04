@@ -532,7 +532,7 @@ Already present:
 
 **Done when:** a judge can understand the decision advantage, burden trade-off, evidence source, and assumptions in under one minute.
 
-### Milestone 7 — Live partial payment — IMPLEMENTED; HOSTED ACCEPTANCE PENDING
+### Milestone 7 — Live partial payment — COMPLETE
 
 - Extend operational cases narrowly for partially paid state and outstanding balance.
 - Enable partial payment on the demo Payment Link.
@@ -542,7 +542,7 @@ Already present:
 
 **Done when:** one real Test Mode partial payment reduces the correct case balance exactly once.
 
-### Milestone 8 — Live AI commitment interpreter and recovery handoff — IMPLEMENTATION COMPLETE; LIVE ACCEPTANCE PENDING
+### Milestone 8 — Live AI commitment interpreter and recovery handoff — COMPLETE
 
 This is the first major, unmistakably AI-focused product milestone. It must show that the model changes a recovery decision, not merely generate copy.
 
@@ -574,7 +574,7 @@ Milestone 9 was completed on 2026-09-03. A shared four-step journey now connects
 
 The operational demo reset is a narrow transaction over only `rc_m1_inv_001`, `rc_m1_inv_002`, and `rc_m7_inv_003`. A transaction-local database flag permits deletion from otherwise immutable demo history only for those IDs; unrelated operational records, schema, and external Razorpay Test Mode objects remain untouched. Development enables the reset; a production-mode demo requires explicit `DEMO_RESET_ENABLED=true`.
 
-### Milestone 10 — AWS deployment and hosted proof — DEPLOYED; HOSTED PAYMENT ACCEPTANCE PENDING
+### Milestone 10 — AWS deployment and hosted proof — COMPLETE
 
 - Define a cost-conscious architecture as infrastructure as code: ECR, ECS on Fargate, an HTTPS Application Load Balancer, Cloudflare DNS, Neon PostgreSQL, managed secrets, CloudWatch observability, and narrowly scoped IAM.
 - Do not provision a NAT Gateway or Amazon RDS. Place Fargate tasks in public subnets with public IPv4 assignment for outbound Neon, Razorpay, OpenRouter, ECR, and AWS control-plane access; restrict application-port ingress to the load balancer security group. Keep this public-address trade-off explicit.
@@ -592,11 +592,11 @@ The operational demo reset is a narrow transaction over only `rc_m1_inv_001`, `r
 
 Milestone 8 implementation was completed on 2026-09-03 with the pinned live OpenRouter adapter, strict local invariants, immutable operational persistence, deterministic policy and approval, webhook-authoritative promise activation, operational queue reallocation, frozen bilingual evaluation corpus, measured hashed model comparison, cached replay, database integration coverage, and browser coverage. Milestone 9 then consolidated and hardened that work without adding product breadth.
 
-The remaining acceptance work is tracked in [Todo.md](../../Todo.md). The system is deployed publicly through Cloudflare to an HTTPS AWS Application Load Balancer and ECS Fargate service. The migration and bounded seed completed, the service and alarms are healthy, and a known Neon-backed case remained identical across forced ECS task replacement. The public webhook rejects unsigned requests, and the SNS alert subscription is confirmed. Cloudflare currently uses `Full` origin encryption and should be tightened to `Full (strict)`; the issued ACM certificate already supports it. The hosted ₹40,000 Razorpay Checkout-to-public-webhook run has not been completed; only authenticated read-only Test Mode access, the signed-payload local integration path, and public invalid-signature rejection have been exercised. The single ZDR-preferred smoke again found no eligible ZDR route and succeeded through the documented `data_collection: deny` fallback. The application persists and displays that fallback posture rather than implying ZDR.
+The system is deployed publicly through Cloudflare to an HTTPS AWS Application Load Balancer and ECS Fargate service. The migration and bounded seed completed, the service and alarms are healthy, and a known Neon-backed case remained identical across forced ECS task replacement. The hosted ₹40,000 Razorpay Checkout-to-public-webhook run completed using a partial-enabled Standard Payment Link: one signed `payment_link.partially_paid` event advanced `INV-003` from ₹75,000 to ₹35,000 exactly once, activated the remainder promise, protected the case, and promoted `INV-001`. The public Command Center, Decision Replay, Razorpay proof, and Evidence Lab were exercised after deployment. Cloudflare currently uses functional `Full` origin encryption and should be tightened to `Full (strict)`; the issued ACM certificate already supports it. The live acceptance model call used the disclosed `data_collection: deny` fallback rather than implying ZDR. The optional SNS email subscription was later reported as deleted and may be recreated if alert delivery is wanted during judging.
 
 The final `commitment-prompt-v1.0.3` corpus artifact records all 12 outcomes explicitly. Of 11 provider-eligible cases, 9 validated; intent accuracy was 72.7%; pay-now amount, promised amount, date, and evidence grounding were each 81.8%; dispute recall was 100%. The injection case was blocked preflight without a provider call. Provider and schema failures were zero. `english-full-today` and `malformed` failed deterministic invariants with `PROMISE_FIELDS_CONFLICT`, and post-policy unsafe action rate remained 0%. These are measured model decisions on synthetic messages, not merchant recovery evidence.
 
-No core recovery-product milestone remains. Milestone 10 is a supporting deployment and operational-readiness milestone, followed by the user-assisted hosted Test Mode acceptance proof.
+No core recovery-product or hosted-acceptance milestone remains. Only optional operational hardening is tracked in [Todo.md](../../Todo.md).
 
 Final verification on 2026-09-03 passed lint, typecheck, 55 non-database tests, six disposable-database integration tests, one Chromium judge-journey test, and the production build. Desktop and narrow responsive views of the Command Center, Decision Replay, cached provenance, and recorded fallback were visually inspected. The final local fixture state was reset after inspection.
 
@@ -660,7 +660,7 @@ Expected revenue impact: Converts an ambiguous response into an actionable parti
 How impact can be measured: Compare frozen model interpretations with a deterministic parser under the same policy, contact budget, and paired synthetic outcome bank; separately demonstrate collection with a verified Razorpay Test Mode webhook.
 Baseline: Razorpay-native Payment Link reminders plus a deterministic keyword/date parser and the fixed finance SOP.
 Evidence:
-  Razorpay Test Mode: Local signed-payload tests prove webhook validation, idempotency, correlation, and balance reconciliation. A user-assisted hosted partial collection through a public webhook remains pending and would prove the end-to-end hosted path; neither mode proves real revenue uplift.
+  Razorpay Test Mode: Local signed-payload tests prove webhook validation, idempotency, correlation, and balance reconciliation. The hosted partial collection through the public webhook completed on 2026-09-04 and proves the end-to-end hosted path; neither mode proves real revenue uplift.
   Synthetic receivables: Supply the reviewed bilingual interpretation corpus and comparable receivable contexts.
   Simulated customer behavior: Supplies frozen downstream outcomes for incremental-recovery comparison.
   Measured agent outcomes: Supply structured interpretations, grounded evidence, proposals, policy decisions, approval outcomes, and queue changes.
@@ -725,7 +725,7 @@ Waiting protects active promises, avoids duplicate collection during ambiguous p
 
 ### “Is that money real?”
 
-The portfolio result is synthetic and labelled. A signed Razorpay event is Test Mode integration evidence, not real money or merchant uplift. The checked-in automated proof uses representative signed payloads; the hosted Checkout-to-public-webhook run is still pending. The recorded fallback is only an illustrated rehearsal path and writes no ledger state.
+The portfolio result is synthetic and labelled. A signed Razorpay event is Test Mode integration evidence, not real money or merchant uplift. The checked-in automated proof uses representative signed payloads; the hosted Checkout-to-public-webhook run completed on 2026-09-04. The recorded fallback is only an illustrated rehearsal path and writes no ledger state.
 
 ### “Was Zero Data Retention verified?”
 

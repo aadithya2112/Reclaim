@@ -88,7 +88,7 @@ repository_uri=$(aws ecr describe-repositories --repository-names recoup \
 release_tag="release-$(date -u +%Y%m%d%H%M%S)"
 aws ecr get-login-password --profile recoup-deployer --region ap-south-1 \
   | docker login --username AWS --password-stdin "${repository_uri%%/*}"
-docker build --platform linux/amd64 --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
+docker build --platform linux/amd64 --provenance=false --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
   -t "$repository_uri:$release_tag" .
 docker push "$repository_uri:$release_tag"
 image_digest=$(aws ecr describe-images --repository-name recoup \
