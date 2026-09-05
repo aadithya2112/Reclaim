@@ -31,6 +31,32 @@
   --radius: 0.625rem;
 }
 
+.dark {
+  --background: oklch(0.16 0.012 205);
+  --foreground: oklch(0.94 0.006 197);
+  --card: oklch(0.195 0.012 205);
+  --card-foreground: oklch(0.94 0.006 197);
+  --popover: oklch(0.205 0.012 205);
+  --popover-foreground: oklch(0.94 0.006 197);
+  --primary: oklch(0.72 0.105 181);
+  --primary-foreground: oklch(0.16 0.025 190);
+  --secondary: oklch(0.25 0.012 205);
+  --secondary-foreground: oklch(0.92 0.006 197);
+  --muted: oklch(0.235 0.009 205);
+  --muted-foreground: oklch(0.69 0.014 197);
+  --accent: oklch(0.27 0.028 186);
+  --accent-foreground: oklch(0.9 0.04 181);
+  --destructive: oklch(0.7 0.18 25);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.65 0.08 181);
+  --chart-1: oklch(0.72 0.105 181);
+  --chart-2: oklch(0.7 0.09 239);
+  --chart-3: oklch(0.74 0.07 75);
+  --chart-4: oklch(0.74 0.11 150);
+  --chart-5: oklch(0.72 0.1 312);
+}
+
 @theme inline {
   --font-sans: var(--font-sans);
   --color-background: var(--background);
@@ -64,7 +90,8 @@
 
 * { border-color: var(--border); }
 html { scroll-behavior: smooth; }
-body { margin: 0; background: var(--background); color: var(--foreground); -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--background); color: var(--foreground); -webkit-font-smoothing: antialiased; color-scheme: light; }
+.dark body { color-scheme: dark; }
 button, a { font: inherit; }
 ::selection { background: color-mix(in oklch, var(--primary) 24%, transparent); }
 

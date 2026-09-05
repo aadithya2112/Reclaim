@@ -3,6 +3,7 @@ import "./globals.css";
 import { Outfit } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/app/theme-provider";
 
 const outfit = Outfit({subsets:['latin'],variable:'--font-sans'});
 
@@ -13,8 +14,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", outfit.variable)}>
-      <body><TooltipProvider>{children}</TooltipProvider></body>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning className={cn("font-sans", outfit.variable)}>
+      <body><ThemeProvider><TooltipProvider>{children}</TooltipProvider></ThemeProvider></body>
     </html>
   );
 }

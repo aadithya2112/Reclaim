@@ -5,6 +5,7 @@ import { Menu, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { EvidenceBadge, type EvidenceKind } from "@/components/app/evidence-badge";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 
 type AppHeaderProps = {
   active: "command" | "replay";
@@ -44,6 +45,7 @@ export function AppHeader({ active, environment, environmentKind, onReset, reset
         </div>
         <div className="flex items-center gap-2">
           <EvidenceBadge kind={environmentKind}>{environment}</EvidenceBadge>
+          <ThemeToggle />
           {onReset ? <Button variant="outline" size="sm" onClick={onReset} disabled={resetting} aria-label={resetting ? "Resetting demo" : "Reset demo"}><RotateCcw /><span className="hidden sm:inline">{resetting ? "Resetting…" : "Reset demo"}</span></Button> : null}
           <Sheet>
             <SheetTrigger render={<Button variant="outline" size="icon" className="xl:hidden" aria-label="Open navigation" />}><Menu /></SheetTrigger>

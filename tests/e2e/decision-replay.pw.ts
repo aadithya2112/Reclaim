@@ -49,6 +49,10 @@ test("cached replay → approval → Razorpay handoff → verified promise and q
 test("command center controls, queues, case inspection, and evidence labels", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Recovery overview" })).toBeVisible();
+  await page.keyboard.press("d");
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await page.keyboard.press("d");
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
   await expect(page.getByText("Paired simulated difference, not causal uplift", { exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: /Simulated recovery plotted/ })).toBeVisible();
 
